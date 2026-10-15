@@ -144,6 +144,28 @@ async function fileDiff(rel, old, mode) {
   return git(['diff', ref, '-M', '--no-color', '--no-ext-diff', '-U3', '--', ...paths], { allowFail: true });
 }
 
+// The committed version of a file, so the client can mark which lines are added/modified/deleted.
+async function baseContent(rel, old, mode) {
+  toAbs(rel);
+  if (old) toAbs(old);
+  const ref = await baseRef(mode);
+  const spec = `${ref}:${old || rel}`;
+  let size;
+  try {
+    size = Number((await git(['cat-file', '-s', spec])).trim());
+  } catch {
+    const ignored = await git(['check-ignore', '-q', '--', rel]).then(
+      () => true,
+      () => false,
+    );
+    return { exists: false, ignored };
+  }
+  if (size > MAX_FILE_BYTES) return { exists: true, tooLarge: true };
+  const content = await git(['cat-file', 'blob', spec]);
+  if (content.includes('\0')) return { exists: true, binary: true };
+  return { exists: true, content };
+}
+
 // Short-lived: dropped after a minute of not searching so it doesn't sit in memory.
 let fileIndex = null;
 let fileIndexTimer = null;
@@ -437,6 +459,8 @@ async function route(pathname, q, req) {
       return { entries: await listDir(q.dir) };
     case '/api/file':
       return readText(q.path);
+    case '/api/base':
+      return baseContent(q.path, q.old, q.mode);
     case '/api/find':
       return { files: await findFiles(q.q ?? '') };
     case '/api/resolve':

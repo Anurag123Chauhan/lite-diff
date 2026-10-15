@@ -8,6 +8,8 @@
     --bg: #1e1f22; --panel: #2b2d30; --border: #3c3f43; --fg: #d4d4d4; --muted: #8b8f96;
     --accent: #4d8df7; --add-bg: #1f3a28; --add-fg: #9be3a8; --del-bg: #45252a; --del-fg: #f1a1a8;
     --hunk: #6d8fd0; --kw: #c586c0; --str: #ce9178; --com: #6a9955; --num: #b5cea8; --type: #4ec9b0;
+    --m-add: #2ea043; --m-mod: #3b82f6; --m-del: #f85149;
+    --code-font: 13px/19px Consolas, "Cascadia Mono", monospace;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 13px/1.4 "Segoe UI", system-ui, sans-serif; }
@@ -28,9 +30,12 @@
   .list { flex: 1; overflow: auto; padding: 4px 0; }
   .row { display: flex; align-items: center; gap: 6px; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
   .row:hover { background: #35383c; }
-  .row.sel { background: #2f4a77; }
+  .row.sel { background: #2f4a77; box-shadow: inset 3px 0 var(--accent); color: #fff; }
+  .row.sel .name { font-weight: 600; }
+  .row.sel .dir { color: #b9c6dc; }
   .row .name { overflow: hidden; text-overflow: ellipsis; }
   .row .dir { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+  .dot { color: #e2c08d; font-size: 10px; flex: none; }
   .st { font-family: Consolas, monospace; font-weight: 700; width: 14px; text-align: center; flex: none; }
   .st-M { color: #e2c08d; } .st-A, .st-\? { color: #73c991; } .st-D { color: #f14c4c; } .st-R, .st-C { color: #4d8df7; }
   .tw { width: 12px; color: var(--muted); flex: none; text-align: center; }
@@ -40,14 +45,21 @@
   .crumbs .c:hover { color: var(--fg); text-decoration: underline; }
   .crumbs .c.cur { color: var(--fg); }
   .crumbs .sep { color: var(--border); }
-  .crumbs .grow { flex: 1; }
-  .crumbs .depth { color: var(--muted); font-size: 12px; }
+  .crumbs .part-path { flex: 1; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
+  .crumbs .part-meta, .crumbs .part-actions { display: flex; align-items: center; gap: 8px; }
+  .crumbs .depth, .crumbs .chg { color: var(--muted); font-size: 12px; font-family: Consolas, monospace; }
   .crumbs .depth.full { color: #e2c08d; }
-  #view { flex: 1; overflow: auto; font: 13px/19px Consolas, "Cascadia Mono", monospace; position: relative; }
+  .chg .a { color: var(--m-add); } .chg .m { color: var(--m-mod); } .chg .d { color: var(--m-del); }
+  #viewWrap { flex: 1; min-height: 0; display: flex; }
+  #view { flex: 1; min-width: 0; overflow: auto; font: var(--code-font); position: relative; }
+  #view.editing { overflow: hidden; }
+  #ruler { width: 12px; flex: none; position: relative; background: #24262a; border-left: 1px solid var(--border); }
+  #ruler .r { position: absolute; left: 2px; right: 2px; min-height: 2px; cursor: pointer; border-radius: 1px; }
+  #ruler .r.ma { background: var(--m-add); } #ruler .r.mm { background: var(--m-mod); } #ruler .r.md { background: var(--m-del); height: 2px; }
   .empty { color: var(--muted); padding: 40px; text-align: center; font-family: "Segoe UI", sans-serif; }
   table.code { border-collapse: collapse; min-width: 100%; }
   table.code td { padding: 0 10px; white-space: pre; vertical-align: top; }
-  table.code td.ln { color: #5f636a; text-align: right; user-select: none; width: 1%; padding: 0 8px; cursor: pointer; }
+  table.code td.ln { color: #5f636a; text-align: right; user-select: none; width: 1%; padding: 0 8px; cursor: pointer; position: relative; }
   table.code td.ln:hover { color: var(--fg); }
   tr.add td.tx { background: var(--add-bg); } tr.add td.ln { background: #1a3022; }
   tr.del td.tx { background: var(--del-bg); } tr.del td.ln { background: #3a2024; }
@@ -55,9 +67,26 @@
   tr.flash td { animation: flash 1.6s ease-out; }
   @keyframes flash { from { background: #5a4d1a; } }
   td.mk { width: 1%; user-select: none; color: var(--muted); padding: 0 2px !important; }
+  /* Change markers (vs HEAD or vs main), shared by the read-only view and the editor gutter. */
+  .ma { box-shadow: inset -3px 0 var(--m-add); }
+  .mm { box-shadow: inset -3px 0 var(--m-mod); }
+  .md::before, .mde::after { content: ''; position: absolute; right: 0; border: 4px solid transparent; border-right-color: var(--m-del); }
+  .md::before { top: -4px; } .mde::after { bottom: -4px; }
   .k { color: var(--kw); } .s { color: var(--str); } .c-m { color: var(--com); font-style: italic; } .n { color: var(--num); } .t { color: var(--type); }
   body.ctrl #view .i:hover, body.ctrl #view .s.imp:hover { text-decoration: underline; color: var(--accent); cursor: pointer; }
-  textarea#editor { flex: 1; width: 100%; resize: none; border: 0; outline: 0; background: var(--bg); color: var(--fg); font: 13px/19px Consolas, monospace; padding: 4px 10px; tab-size: 2; white-space: pre; }
+  /* Editor: a transparent textarea over a highlighted copy that only renders the visible lines. */
+  .ed { position: absolute; inset: 0; display: flex; background: var(--bg); }
+  .ed-gutter { flex: none; position: relative; overflow: hidden; background: var(--bg); color: #5f636a; user-select: none; border-right: 1px solid #2c2e32; font: var(--code-font); }
+  .ed-gutter .g-in { position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
+  .ed-gutter .g { position: relative; height: 19px; text-align: right; padding: 0 8px; font: var(--code-font); }
+  .ed-main { flex: 1; min-width: 0; position: relative; overflow: hidden; }
+  .ed-hl, .ed-ta { font: var(--code-font); tab-size: 4; font-variant-ligatures: none; letter-spacing: 0; white-space: pre; }
+  .ed-hl { position: absolute; left: 0; top: 0; margin: 0; padding: 0 10px; pointer-events: none; will-change: transform; color: var(--fg); }
+  .ed-ta { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; resize: none; border: 0; outline: 0; padding: 4px 10px; overflow: auto;
+           background: transparent; color: transparent; caret-color: #fff; }
+  .ed-ta::selection { background: rgba(58, 110, 175, .45); color: transparent; }
+  body.ctrl .ed-ta { pointer-events: none; }
+  body.ctrl .ed-hl { pointer-events: auto; }
   #toast { position: fixed; bottom: 16px; right: 16px; background: #3a3d41; border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 480px; }
   #toast.show { opacity: 1; }
   .help { color: var(--muted); font-size: 12px; padding: 8px; border-top: 1px solid var(--border); line-height: 1.6; }
@@ -87,23 +116,37 @@
   </div>
   <div class="list" id="list"></div>
   <div class="help">
-    <kbd>Ctrl</kbd>+click import / identifier → go to definition<br />
-    <kbd>Alt</kbd>+<kbd>←</kbd> back · <kbd>Ctrl</kbd>+<kbd>P</kbd> go to file · <kbd>E</kbd> edit · <kbd>Ctrl</kbd>+<kbd>S</kbd> save
+    <kbd>Ctrl</kbd>+click import / identifier → go to definition (also while editing)<br />
+    <kbd>Alt</kbd>+<kbd>←</kbd> back · <kbd>Ctrl</kbd>+<kbd>P</kbd> go to file · <kbd>E</kbd> edit · <kbd>Ctrl</kbd>+<kbd>S</kbd> save<br />
+    Gutter: <span style="color:var(--m-add)">▌</span>added <span style="color:var(--m-mod)">▌</span>modified <span style="color:var(--m-del)">◂</span>deleted
   </div>
 </aside>
 <div id="resizer"></div>
 <main>
   <div class="crumbs" id="crumbs"></div>
-  <div id="view"><div class="empty">Pick a changed file on the left.</div></div>
+  <div id="viewWrap">
+    <div id="view"><div class="empty">Pick a changed file on the left.</div></div>
+    <div id="ruler" hidden title="Changes in this file"></div>
+  </div>
 </main>
 <div id="toast"></div>
 <script>
 'use strict';
 const $ = (s) => document.querySelector(s);
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const toLF = (s) => s.replace(/\r\n?/g, '\n');
 const HIGHLIGHT_LIMIT = 400_000;
 const CODE_EXT = /\.(m?[jt]sx?|cjs|json|css|scss|less|html|md|yml|yaml|sh|py|go|rs|java|kt|swift|rb|php|c|h|cpp|cs)$/i;
 const JS_EXT = /\.(m?[jt]sx?|cjs)$/i;
+const LINE_HEIGHT = 19;
+const EDITOR_PAD_TOP = 4;
+// Lines rendered above/below the viewport so fast scrolling doesn't show gaps.
+const OVERSCAN_LINES = 40;
+const MARKS_DEBOUNCE_MS = 200;
+// Past this many changed lines the diff stops being worth the CPU; the changed span is marked as one block.
+const MAX_DIFF_EDITS = 1000;
+const MARK_ADD = 1;
+const MARK_MOD = 2;
 
 const state = {
   maxDepth: 3,
@@ -119,6 +162,9 @@ const state = {
   current: null,
   editing: false,
   dirty: false,
+  // Unsaved edits survive Ctrl+click navigation: path -> { text, scrollTop }.
+  drafts: new Map(),
+  ed: null,
 };
 
 async function api(path, params = {}, init) {
@@ -206,11 +252,152 @@ function findLocalDeclaration(text, name) {
   return text.slice(0, m.index + 1).split('\n').length;
 }
 
+// ---------- change markers: Myers line diff of the committed version vs the current text ----------
+function myersOps(a, a0, a1, b, b0, b1) {
+  const N = a1 - a0;
+  const M = b1 - b0;
+  const max = N + M;
+  if (!max) return [];
+  const off = max + 1;
+  const v = new Int32Array(2 * max + 3);
+  const trace = [];
+  const limit = Math.min(max, MAX_DIFF_EDITS);
+  for (let d = 0; d <= limit; d++) {
+    trace.push(v.slice(off - d, off + d + 1));
+    for (let k = -d; k <= d; k += 2) {
+      let x = k === -d || (k !== d && v[off + k - 1] < v[off + k + 1]) ? v[off + k + 1] : v[off + k - 1] + 1;
+      let y = x - k;
+      while (x < N && y < M && a[a0 + x] === b[b0 + y]) {
+        x++;
+        y++;
+      }
+      v[off + k] = x;
+      if (x >= N && y >= M) {
+        const ops = [];
+        let cx = N;
+        let cy = M;
+        for (let dd = d; dd > 0; dd--) {
+          const pv = trace[dd];
+          const at = (kk) => pv[kk + dd];
+          const ck = cx - cy;
+          const isInsert = ck === -dd || (ck !== dd && at(ck - 1) < at(ck + 1));
+          const prevK = isInsert ? ck + 1 : ck - 1;
+          const prevX = at(prevK);
+          const prevY = prevX - prevK;
+          // [isInsert, a index, b index] where the edit happens: insert b[prevY] or delete a[prevX].
+          ops.push([isInsert, a0 + prevX, b0 + prevY]);
+          cx = prevX;
+          cy = prevY;
+        }
+        return ops.reverse();
+      }
+    }
+  }
+  return null;
+}
+
+function computeMarks(baseLines, curLines) {
+  const ids = new Map();
+  const id = (s) => {
+    let n = ids.get(s);
+    if (n === undefined) ids.set(s, (n = ids.size));
+    return n;
+  };
+  const a = baseLines.map(id);
+  const b = curLines.map(id);
+  let s = 0;
+  while (s < a.length && s < b.length && a[s] === b[s]) s++;
+  let ea = a.length;
+  let eb = b.length;
+  while (ea > s && eb > s && a[ea - 1] === b[eb - 1]) {
+    ea--;
+    eb--;
+  }
+  const hunks = [];
+  const ops = myersOps(a, s, ea, b, s, eb);
+  if (ops) {
+    let h = null;
+    for (const [isIns, x, y] of ops) {
+      if (h && x === h.x + h.dels && y === h.y + h.ins) isIns ? h.ins++ : h.dels++;
+      else hunks.push((h = { x, y, dels: isIns ? 0 : 1, ins: isIns ? 1 : 0 }));
+    }
+  } else {
+    hunks.push({ x: s, y: s, dels: ea - s, ins: eb - s });
+  }
+  const marks = new Uint8Array(b.length);
+  const delBefore = new Set();
+  let delAtEnd = false;
+  const counts = { add: 0, mod: 0, del: 0 };
+  for (const h of hunks) {
+    if (h.ins) {
+      const kind = h.dels ? MARK_MOD : MARK_ADD;
+      marks.fill(kind, h.y, h.y + h.ins);
+      if (h.dels) {
+        counts.mod += Math.min(h.ins, h.dels);
+        if (h.ins > h.dels) counts.add += h.ins - h.dels;
+        else counts.del += h.dels - h.ins;
+      } else counts.add += h.ins;
+    } else if (h.dels) {
+      counts.del += h.dels;
+      if (h.y < b.length) delBefore.add(h.y);
+      else delAtEnd = true;
+    }
+  }
+  return { marks, delBefore, delAtEnd, counts };
+}
+
+// base: { lines } | { allAdded } | null (no markers)
+function marksFor(base, text) {
+  if (!base) return null;
+  const lines = text.split('\n');
+  if (base.allAdded) {
+    const marks = new Uint8Array(lines.length).fill(MARK_ADD);
+    return { marks, delBefore: new Set(), delAtEnd: false, counts: { add: lines.length, mod: 0, del: 0 } };
+  }
+  return computeMarks(base.lines, lines);
+}
+
+function markClass(info, i, total) {
+  if (!info) return '';
+  const m = info.marks[i];
+  let cls = m === MARK_ADD ? 'ma' : m === MARK_MOD ? 'mm' : '';
+  if (info.delBefore.has(i)) cls += ' md';
+  if (info.delAtEnd && i === total - 1) cls += ' mde';
+  return cls;
+}
+
+function renderRuler(info, total) {
+  const ruler = $('#ruler');
+  const cur = state.current;
+  if (!info || cur?.kind !== 'file' || !total) {
+    ruler.hidden = true;
+    return;
+  }
+  const pct = (n) => (n / total) * 100;
+  const parts = [];
+  for (let i = 0; i < info.marks.length; ) {
+    const m = info.marks[i];
+    if (!m) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < info.marks.length && info.marks[j] === m) j++;
+    parts.push(`<div class="r ${m === MARK_ADD ? 'ma' : 'mm'}" data-line="${i + 1}" style="top:${pct(i)}%;height:${pct(j - i)}%"></div>`);
+    i = j;
+  }
+  for (const i of info.delBefore) parts.push(`<div class="r md" data-line="${i + 1}" style="top:${pct(i)}%"></div>`);
+  if (info.delAtEnd) parts.push(`<div class="r md" data-line="${total}" style="top:calc(100% - 2px)"></div>`);
+  ruler.innerHTML = parts.join('');
+  ruler.hidden = false;
+}
+
 // ---------- sidebar ----------
 function setTab(tab) {
   state.tab = tab;
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   $('#changesBar').style.display = tab === 'changes' ? '' : 'none';
+  if (tab === 'files' && state.current) revealInTree(state.current.path);
   renderList();
 }
 
@@ -235,28 +422,35 @@ function row({ html, title, selected, onClick, indent = 0 }) {
   el.style.paddingLeft = `${8 + indent * 14}px`;
   el.innerHTML = html;
   if (title) el.title = title;
+  if (selected) el.setAttribute('aria-current', 'true');
   el.onclick = onClick;
   return el;
 }
 
+const draftDot = (p) => (state.drafts.has(p) ? '<span class="dot" title="Unsaved edits">●</span>' : '');
+
+// Highlight by path whatever the view (diff, file opened via Ctrl+click / Ctrl+P / "Open file").
+const isOpen = (p) => state.current?.path === p;
+
+let listSeq = 0;
 async function renderList() {
+  const seq = ++listSeq;
   const list = $('#list');
   const frag = document.createDocumentFragment();
-  const cur = state.current;
   if (state.tab === 'changes') {
     if (!state.changes.length) list.innerHTML = '<div class="empty">No changes.</div>';
     for (const c of state.changes) {
       const slash = c.path.lastIndexOf('/');
       frag.append(row({
-        html: `<span class="st st-${c.status}">${c.status === '?' ? 'U' : c.status}</span><span class="name">${esc(c.path.slice(slash + 1))}</span><span class="dir">${esc(c.path.slice(0, slash))}</span>`,
+        html: `<span class="st st-${c.status}">${c.status === '?' ? 'U' : c.status}</span><span class="name">${esc(c.path.slice(slash + 1))}</span>${draftDot(c.path)}<span class="dir">${esc(c.path.slice(0, slash))}</span>`,
         title: c.old ? `${c.old} → ${c.path}` : c.path,
-        selected: cur?.kind === 'diff' && cur.path === c.path,
+        selected: isOpen(c.path),
         onClick: () => startChain({ kind: 'diff', path: c.path, old: c.old, status: c.status }),
       }));
     }
   } else if (state.tab === 'find') {
     for (const p of state.findResults) {
-      frag.append(row({ html: `<span class="name">${esc(p)}</span>`, title: p, onClick: () => startChain({ kind: 'file', path: p }) }));
+      frag.append(row({ html: `<span class="name">${esc(p)}</span>${draftDot(p)}`, title: p, selected: isOpen(p), onClick: () => startChain({ kind: 'file', path: p }) }));
     }
   } else {
     const walk = async (dir, depth) => {
@@ -264,9 +458,9 @@ async function renderList() {
         const p = dir ? `${dir}/${e.name}` : e.name;
         const open = state.expanded.has(p);
         frag.append(row({
-          html: `<span class="tw">${e.dir ? (open ? '▾' : '▸') : ''}</span><span class="name">${esc(e.name)}</span>`,
+          html: `<span class="tw">${e.dir ? (open ? '▾' : '▸') : ''}</span><span class="name">${esc(e.name)}</span>${e.dir ? '' : draftDot(p)}`,
           indent: depth,
-          selected: !e.dir && cur?.path === p,
+          selected: !e.dir && isOpen(p),
           onClick: () => {
             if (!e.dir) return startChain({ kind: 'file', path: p });
             open ? state.expanded.delete(p) : state.expanded.add(p);
@@ -282,7 +476,12 @@ async function renderList() {
       toast(err.message);
     }
   }
+  // A newer render started while folders were loading; let that one win.
+  if (seq !== listSeq) return;
+  const scrollTop = list.scrollTop;
   list.replaceChildren(frag);
+  list.scrollTop = scrollTop;
+  list.querySelector('.row.sel')?.scrollIntoView({ block: 'nearest' });
 }
 
 function revealInTree(path) {
@@ -291,21 +490,21 @@ function revealInTree(path) {
 }
 
 // ---------- navigation ----------
-const sameLoc = (a, b) => a && b && a.kind === b.kind && a.path === b.path;
-
-function confirmDiscard() {
-  return !state.editing || !state.dirty || confirm('Discard unsaved changes?');
+// Leaving an edited file keeps its edits as a draft instead of prompting.
+function stashDraft() {
+  const ed = state.ed;
+  if (!ed) return;
+  if (state.dirty) state.drafts.set(ed.loc.path, { text: ed.ta.value, scrollTop: ed.ta.scrollTop });
+  else state.drafts.delete(ed.loc.path);
 }
 
 function startChain(loc) {
-  if (!confirmDiscard()) return;
   if (state.current) state.back.push({ chain: state.chain, loc: state.current });
   state.chain = [loc];
   show(loc);
 }
 
 function hop(loc) {
-  if (!confirmDiscard()) return;
   const hops = state.chain.length - 1;
   if (hops >= state.maxDepth) {
     toast(`Ctrl+click depth limit (${state.maxDepth}) reached. Open the file from the sidebar or Ctrl+P to start a new chain.`);
@@ -317,7 +516,6 @@ function hop(loc) {
 }
 
 function goBack() {
-  if (!confirmDiscard()) return;
   const prev = state.back.pop();
   if (!prev) return;
   state.chain = prev.chain;
@@ -325,36 +523,70 @@ function goBack() {
 }
 
 function jumpToCrumb(i) {
-  if (i === state.chain.length - 1 || !confirmDiscard()) return;
+  if (i === state.chain.length - 1) return;
   state.back.push({ chain: state.chain, loc: state.current });
   state.chain = state.chain.slice(0, i + 1);
   show(state.chain[i]);
 }
 
-function renderCrumbs() {
-  const el = $('#crumbs');
-  const hops = state.chain.length - 1;
-  const parts = state.chain.map((loc, i) => {
-    const name = loc.path.split('/').pop() + (loc.kind === 'diff' ? ' (diff)' : '');
-    return `${i ? '<span class="sep">›</span>' : ''}<span class="c${i === state.chain.length - 1 ? ' cur' : ''}" data-i="${i}" title="${esc(loc.path)}">${esc(name)}</span>`;
-  });
-  const cur = state.current;
-  const canEdit = cur?.kind === 'file' && !cur.readonly;
-  el.innerHTML = `${parts.join('')}<span class="grow"></span>
-    ${cur ? `<span class="depth${hops >= state.maxDepth ? ' full' : ''}" title="Ctrl+click hops used in this chain">depth ${hops}/${state.maxDepth}</span>` : ''}
-    ${cur?.kind === 'diff' && cur.status !== 'D' ? '<button class="btn" id="openFile">Open file</button>' : ''}
-    ${canEdit && !state.editing ? '<button class="btn" id="edit">Edit (E)</button>' : ''}
-    ${state.editing ? '<button class="btn" id="save">Save (Ctrl+S)</button><button class="btn" id="cancel">Cancel</button>' : ''}`;
-  el.querySelectorAll('.c').forEach((c) => (c.onclick = () => jumpToCrumb(Number(c.dataset.i))));
-  $('#openFile')?.addEventListener('click', () => hopOrStart({ kind: 'file', path: cur.path }));
-  $('#edit')?.addEventListener('click', startEdit);
-  $('#save')?.addEventListener('click', save);
-  $('#cancel')?.addEventListener('click', () => {
-    if (!confirmDiscard()) return;
-    state.editing = false;
-    show(state.current);
-  });
+function changeSummary() {
+  const c = state.current?.marks?.counts;
+  if (!c || !(c.add || c.mod || c.del)) return '';
+  const vs = state.mode === 'branch' ? 'main' : 'HEAD';
+  return `<span class="chg" title="Lines changed vs ${vs}"><span class="a">+${c.add}</span> <span class="m">~${c.mod}</span> <span class="d">−${c.del}</span> vs ${vs}</span>`;
 }
+
+// Each part only re-renders when its own HTML changes, so a button is never swapped out mid-click.
+const crumbParts = new Map();
+function setPart(name, html) {
+  let el = crumbParts.get(name);
+  if (!el) {
+    el = document.createElement('span');
+    el.className = `part-${name}`;
+    crumbParts.set(name, el);
+    $('#crumbs').append(el);
+  }
+  if (el.dataset.v !== html) {
+    el.innerHTML = html;
+    el.dataset.v = html;
+  }
+}
+
+function renderCrumbs() {
+  const hops = state.chain.length - 1;
+  const cur = state.current;
+  const parts = state.chain.map((loc, i) => {
+    const isCur = i === state.chain.length - 1;
+    const unsaved = (isCur && state.dirty) || (!isCur && state.drafts.has(loc.path)) ? '● ' : '';
+    const name = unsaved + loc.path.split('/').pop() + (loc.kind === 'diff' ? ' (diff)' : '');
+    return `${i ? '<span class="sep">›</span>' : ''}<span class="c${isCur ? ' cur' : ''}" data-i="${i}" title="${esc(loc.path)}">${esc(name)}</span>`;
+  });
+  // Only offer Edit once the file's text has loaded; before that startEdit() has nothing to edit.
+  const canEdit = cur?.kind === 'file' && !cur.readonly && cur.text != null;
+  setPart('path', parts.join(''));
+  setPart('meta', `${changeSummary()}
+    ${cur ? `<span class="depth${hops >= state.maxDepth ? ' full' : ''}" title="Ctrl+click hops used in this chain">depth ${hops}/${state.maxDepth}</span>` : ''}`);
+  setPart('actions', `${cur?.kind === 'diff' && cur.status !== 'D' ? '<button class="btn" id="openFile">Open file</button>' : ''}
+    ${canEdit && !state.editing ? '<button class="btn" id="edit">Edit (E)</button>' : ''}
+    ${state.editing ? '<button class="btn" id="save">Save (Ctrl+S)</button><button class="btn" id="cancel">Discard</button>' : ''}`);
+}
+
+// Delegated so buttons keep working when their part re-renders.
+$('#crumbs').addEventListener('click', (e) => {
+  const cur = state.current;
+  const crumb = e.target.closest('.c');
+  if (crumb) return jumpToCrumb(Number(crumb.dataset.i));
+  switch (e.target.closest('button')?.id) {
+    case 'openFile':
+      return hopOrStart({ kind: 'file', path: cur.path, old: cur.old });
+    case 'edit':
+      return startEdit();
+    case 'save':
+      return save();
+    case 'cancel':
+      return discardEdits();
+  }
+});
 
 // Opening the file behind a diff isn't a "definition" jump, so it doesn't spend depth.
 function hopOrStart(loc) {
@@ -363,12 +595,29 @@ function hopOrStart(loc) {
   show(loc);
 }
 
+async function loadBase(loc) {
+  try {
+    const b = await api('/api/base', { path: loc.path, old: loc.old || '', mode: state.mode });
+    if (b.content != null) return { lines: toLF(b.content).split('\n') };
+    if (b.exists === false && !b.ignored) return { allAdded: true };
+  } catch {
+    // Markers are a nice-to-have; the file still opens without them.
+  }
+  return null;
+}
+
 let showSeq = 0;
 async function show(loc) {
+  stashDraft();
   const seq = ++showSeq;
   state.current = loc;
   state.editing = false;
   state.dirty = false;
+  state.ed = null;
+  $('#view').classList.remove('editing');
+  $('#ruler').hidden = true;
+  // A revisited file reloads fresh, so don't offer Edit on its stale text in the meantime.
+  if (loc.kind === 'file') loc.text = null;
   renderCrumbs();
   if (state.tab === 'files') revealInTree(loc.path);
   renderList();
@@ -381,7 +630,7 @@ async function show(loc) {
       if (loc.status === '?') return renderUntracked(loc, seq);
       renderDiff(diff, loc);
     } else {
-      const data = await api('/api/file', { path: loc.path });
+      const [data, base] = await Promise.all([api('/api/file', { path: loc.path }), loadBase(loc)]);
       if (seq !== showSeq) return;
       if (data.tooLarge || data.binary) {
         loc.readonly = true;
@@ -389,8 +638,15 @@ async function show(loc) {
         view.innerHTML = `<div class="empty">${data.binary ? 'Binary file' : 'File too large to show'} (${(data.size / 1024).toFixed(0)} KB)</div>`;
         return;
       }
-      loc.text = data.content;
-      renderFile(loc);
+      loc.eol = data.content.includes('\r\n') ? '\r\n' : '\n';
+      loc.text = toLF(data.content);
+      loc.base = base;
+      loc.marks = marksFor(base, loc.text);
+      loc.imports = null;
+      renderCrumbs();
+      const draft = state.drafts.get(loc.path);
+      if (draft) startEdit(draft);
+      else renderFile(loc);
     }
   } catch (e) {
     if (seq === showSeq) view.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
@@ -404,7 +660,7 @@ async function renderUntracked(loc, seq) {
     $('#view').innerHTML = '<div class="empty">New file (binary or too large to show)</div>';
     return;
   }
-  const lines = data.content.replace(/\n$/, '').split('\n');
+  const lines = toLF(data.content).replace(/\n$/, '').split('\n');
   const diff = `@@ -0,0 +1,${lines.length} @@ new file\n` + lines.map((l) => '+' + l).join('\n');
   renderDiff(diff, loc);
 }
@@ -419,7 +675,8 @@ function renderDiff(diff, loc) {
   let oldN = 0;
   let newN = 0;
   let started = false;
-  for (const line of diff.split('\n')) {
+  for (const raw of diff.split('\n')) {
+    const line = raw.replace(/\r$/, '');
     if (line.startsWith('@@')) {
       started = true;
       const m = /@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(line);
@@ -442,13 +699,18 @@ function renderFile(loc) {
   const view = $('#view');
   const { specs } = JS_EXT.test(loc.path) ? (loc.imports ??= parseImports(loc.text)) : { specs: null };
   const lines = highlightLines(loc.text, loc.path, specs);
+  const info = loc.marks;
   let html = '';
-  for (let i = 0; i < lines.length; i++) html += `<tr id="L${i + 1}"><td class="ln" data-line="${i + 1}">${i + 1}</td><td class="tx">${lines[i] || ' '}</td></tr>`;
+  for (let i = 0; i < lines.length; i++) {
+    html += `<tr id="L${i + 1}"><td class="ln ${markClass(info, i, lines.length)}" data-line="${i + 1}">${i + 1}</td><td class="tx">${lines[i] || ' '}</td></tr>`;
+  }
   view.innerHTML = `<table class="code">${html}</table>`;
+  renderRuler(info, lines.length);
   scrollToLine(loc.line);
 }
 
 function scrollToLine(line) {
+  if (state.ed) return editorGoToLine(line);
   const view = $('#view');
   if (!line || line <= 1) {
     view.scrollTop = 0;
@@ -462,9 +724,10 @@ function scrollToLine(line) {
 
 // ---------- ctrl+click ----------
 async function fileTextFor(loc) {
+  if (state.ed && state.ed.loc === loc) return state.ed.ta.value;
   if (loc.kind === 'file' && loc.text != null) return loc.text;
   const data = await api('/api/file', { path: loc.path });
-  return data.content ?? '';
+  return toLF(data.content ?? '');
 }
 
 async function onCtrlClick(target) {
@@ -499,41 +762,141 @@ async function onCtrlClick(target) {
 }
 
 // ---------- editing ----------
-function startEdit() {
+function startEdit(draft) {
   const cur = state.current;
   if (cur?.kind !== 'file' || cur.readonly || cur.text == null) return;
   const view = $('#view');
-  const firstVisible = Math.floor(view.scrollTop / 19);
+  const startScroll = draft?.scrollTop ?? view.scrollTop;
   state.editing = true;
-  state.dirty = false;
+  state.dirty = Boolean(draft);
+
+  const host = document.createElement('div');
+  host.className = 'ed';
+  host.innerHTML = '<div class="ed-gutter"><div class="g-in"></div></div><div class="ed-main"><pre class="ed-hl"></pre><textarea class="ed-ta" id="editor" wrap="off" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea></div>';
+  const ta = host.querySelector('textarea');
+  ta.value = draft?.text ?? cur.text;
+  const ed = {
+    loc: cur,
+    ta,
+    hl: host.querySelector('.ed-hl'),
+    gutter: host.querySelector('.ed-gutter'),
+    gutterInner: host.querySelector('.g-in'),
+    lines: ta.value.split('\n'),
+    specs: JS_EXT.test(cur.path) ? parseImports(ta.value).specs : null,
+    marks: draft ? marksFor(cur.base, ta.value) : cur.marks,
+    frame: 0,
+    marksTimer: 0,
+  };
+  state.ed = ed;
+  cur.marks = ed.marks;
+  view.classList.add('editing');
+  view.replaceChildren(host);
   renderCrumbs();
-  const ta = document.createElement('textarea');
-  ta.id = 'editor';
-  ta.spellcheck = false;
-  ta.value = cur.text;
-  ta.oninput = () => (state.dirty = true);
-  ta.onkeydown = (e) => {
-    if (e.key === 'Tab' && !e.ctrlKey && !e.altKey) {
+
+  ta.addEventListener('scroll', () => scheduleEditorRender(ed));
+  ta.addEventListener('input', () => {
+    ed.lines = ta.value.split('\n');
+    if (!state.dirty) {
+      state.dirty = true;
+      renderCrumbs();
+    }
+    renderEditorWindow(ed);
+    clearTimeout(ed.marksTimer);
+    ed.marksTimer = setTimeout(() => refreshEditorMarks(ed), MARKS_DEBOUNCE_MS);
+  });
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) {
       e.preventDefault();
       document.execCommand('insertText', false, '  ');
+    } else if (e.key === 'Enter' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+      const lineStart = ta.value.lastIndexOf('\n', ta.selectionStart - 1) + 1;
+      const indent = /^[ \t]*/.exec(ta.value.slice(lineStart, ta.selectionStart))[0];
+      e.preventDefault();
+      document.execCommand('insertText', false, '\n' + indent);
     }
-  };
-  view.replaceChildren(ta);
-  ta.scrollTop = firstVisible * 19;
+  });
+  new ResizeObserver(() => scheduleEditorRender(ed)).observe(ta);
+
+  ta.scrollTop = startScroll;
+  renderEditorWindow(ed);
+  renderRuler(ed.marks, ed.lines.length);
   ta.focus({ preventScroll: true });
+}
+
+function scheduleEditorRender(ed) {
+  if (ed.frame) return;
+  ed.frame = requestAnimationFrame(() => {
+    ed.frame = 0;
+    renderEditorWindow(ed);
+  });
+}
+
+// Only the visible lines (plus overscan) are highlighted and in the DOM, so big files stay cheap.
+function renderEditorWindow(ed) {
+  if (state.ed !== ed) return;
+  const { ta, lines } = ed;
+  const total = lines.length;
+  const first = Math.max(0, Math.floor((ta.scrollTop - EDITOR_PAD_TOP) / LINE_HEIGHT) - OVERSCAN_LINES);
+  const last = Math.min(total, Math.ceil((ta.scrollTop + ta.clientHeight) / LINE_HEIGHT) + OVERSCAN_LINES);
+  const html = highlightLines(lines.slice(first, last).join('\n'), ed.loc.path, ed.specs);
+  ed.hl.innerHTML = html.join('\n') + '\n';
+  const y = first * LINE_HEIGHT + EDITOR_PAD_TOP - ta.scrollTop;
+  ed.hl.style.transform = `translate(${-ta.scrollLeft}px, ${y}px)`;
+  let g = '';
+  for (let i = first; i < last; i++) g += `<div class="g ${markClass(ed.marks, i, total)}">${i + 1}</div>`;
+  ed.gutterInner.innerHTML = g;
+  ed.gutterInner.style.transform = `translateY(${y}px)`;
+  ed.gutter.style.width = `${String(total).length + 3}ch`;
+}
+
+function refreshEditorMarks(ed) {
+  if (state.ed !== ed) return;
+  ed.marks = marksFor(ed.loc.base, ed.ta.value);
+  ed.loc.marks = ed.marks;
+  if (ed.specs) ed.specs = parseImports(ed.ta.value).specs;
+  renderEditorWindow(ed);
+  renderRuler(ed.marks, ed.lines.length);
+  renderCrumbs();
+}
+
+function editorGoToLine(line) {
+  const ed = state.ed;
+  if (!ed || !line) return;
+  const { ta } = ed;
+  ta.scrollTop = Math.max(0, (line - 1) * LINE_HEIGHT - ta.clientHeight / 3);
+  let pos = 0;
+  for (let i = 1; i < line && pos !== -1; i++) pos = ta.value.indexOf('\n', pos) + 1 || -1;
+  if (pos >= 0) ta.setSelectionRange(pos, pos);
+  ta.focus({ preventScroll: true });
+  renderEditorWindow(ed);
+}
+
+function discardEdits() {
+  const cur = state.current;
+  if (state.dirty && !confirm('Discard unsaved changes?')) return;
+  state.dirty = false;
+  state.drafts.delete(cur.path);
+  show(cur);
 }
 
 async function save() {
   const cur = state.current;
-  const ta = $('#editor');
-  if (!ta || !cur) return;
+  const ed = state.ed;
+  if (!ed || !cur) return;
+  const text = ed.ta.value;
   try {
-    await api('/api/save', { path: cur.path }, { method: 'POST', body: ta.value, headers: { 'x-lite-diff': '1' } });
-    cur.text = ta.value;
+    // Textareas always use \n; keep the file's own line endings so the whole file doesn't show as changed.
+    const body = cur.eol === '\r\n' ? text.replace(/\n/g, '\r\n') : text;
+    await api('/api/save', { path: cur.path }, { method: 'POST', body, headers: { 'x-lite-diff': '1' } });
+    cur.text = text;
     cur.imports = null;
-    cur.line = Math.floor(ta.scrollTop / 19) + 1;
+    cur.marks = marksFor(cur.base, text);
+    cur.line = Math.floor(ed.ta.scrollTop / LINE_HEIGHT) + 1;
+    state.drafts.delete(cur.path);
     state.editing = false;
     state.dirty = false;
+    state.ed = null;
+    $('#view').classList.remove('editing');
     toast('Saved');
     renderCrumbs();
     renderFile(cur);
@@ -581,7 +944,7 @@ $('#mode').onchange = (e) => {
   state.mode = e.target.value;
   localStorage.setItem('lite-diff-mode', state.mode);
   loadChanges();
-  if (state.current?.kind === 'diff') show(state.current);
+  if (state.current) show(state.current);
 };
 $('#refresh').onclick = () => {
   state.dirCache.clear();
@@ -592,14 +955,18 @@ $('#refresh').onclick = () => {
 $('#view').addEventListener('click', (e) => {
   const ln = e.target.closest('td.ln[data-line]');
   if (ln && state.current?.kind === 'diff' && state.current.status !== 'D') {
-    return hopOrStart({ kind: 'file', path: state.current.path, line: Number(ln.dataset.line) });
+    return hopOrStart({ kind: 'file', path: state.current.path, old: state.current.old, line: Number(ln.dataset.line) });
   }
-  if (!(e.ctrlKey || e.metaKey) || state.editing) return;
+  if (!(e.ctrlKey || e.metaKey)) return;
   const tok = e.target.closest('.i, .s');
   if (tok) {
     e.preventDefault();
     onCtrlClick(tok);
   }
+});
+$('#ruler').addEventListener('click', (e) => {
+  const r = e.target.closest('.r[data-line]');
+  if (r) scrollToLine(Number(r.dataset.line));
 });
 
 addEventListener('keydown', (e) => {
@@ -627,7 +994,7 @@ addEventListener('keyup', (e) => {
 addEventListener('blur', () => document.body.classList.remove('ctrl'));
 addEventListener('mouseup', (e) => e.button === 3 && goBack());
 addEventListener('beforeunload', (e) => {
-  if (state.editing && state.dirty) e.preventDefault();
+  if (state.dirty || state.drafts.size) e.preventDefault();
 });
 
 const resizer = $('#resizer');

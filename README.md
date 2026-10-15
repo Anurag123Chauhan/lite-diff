@@ -7,7 +7,8 @@ A tiny, low-memory git diff viewer and file editor for big repos. Use it when yo
 - Changes view (uncommitted or whole branch vs `main`) with coloured diffs
 - Lazy-loading file tree and Ctrl+P file search
 - Ctrl+click go-to-definition with a configurable depth limit; resolves relative imports, tsconfig `paths`, workspace package `exports`, and barrel re-exports
-- Simple edit + save
+- Edit + save with syntax highlighting, Ctrl+click go-to-definition while editing, and unsaved drafts kept when you navigate away
+- VS Code-style change markers in the gutter (green added, blue modified, red deleted) plus an overview strip, updated live as you type, against HEAD or the branch base
 
 ## Usage
 
