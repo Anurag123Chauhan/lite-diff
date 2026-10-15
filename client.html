@@ -94,6 +94,37 @@
   .ed-ta::selection { background: rgba(58, 110, 175, .45); color: transparent; }
   body.ctrl .ed-ta { pointer-events: none; }
   body.ctrl .ed-hl { pointer-events: auto; }
+  /* Editor tabs */
+  #tabbar { display: flex; align-items: stretch; background: #232427; border-bottom: 1px solid var(--border); min-height: 34px; }
+  #tabbar[hidden] { display: none; }
+  #tabs { flex: 1; display: flex; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+  .tab { display: flex; align-items: center; gap: 6px; padding: 0 6px 0 12px; max-width: 220px; min-width: 0; flex: none; cursor: pointer; color: var(--muted);
+         border-right: 1px solid var(--border); border-top: 2px solid transparent; font-size: 12px; user-select: none; }
+  .tab:hover { background: #2a2c30; }
+  .tab.on { background: var(--bg); color: #fff; border-top-color: var(--accent); }
+  .tab.picked { background: #2c3a52; }
+  .tab.picked.on { background: #283447; }
+  .tab .tn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tab .tk { font-size: 10px; color: var(--muted); }
+  .tab .tx-close { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 4px; color: var(--muted); font-size: 14px; line-height: 1; flex: none; }
+  .tab .tx-close:hover { background: #3c3f43; color: #fff; }
+  /* Unsaved: show a dot instead of the ×, revealing the × on hover (like VS Code). */
+  .tab.dirty .tx-close::before { content: '●'; font-size: 10px; }
+  .tab.dirty .tx-close > span { display: none; }
+  .tab.dirty:hover .tx-close::before { content: none; }
+  .tab.dirty:hover .tx-close > span { display: inline; }
+  #tabActions { display: flex; align-items: center; gap: 4px; padding: 0 6px; border-left: 1px solid var(--border); }
+  #tabActions button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; font: inherit; font-size: 12px; white-space: nowrap; }
+  #tabActions button:hover { background: #3c3f43; color: #fff; }
+  #tabActions button[hidden] { display: none; }
+  #tabMenu { position: fixed; z-index: 10; background: #2b2d30; border: 1px solid var(--border); border-radius: 6px; padding: 4px; min-width: 190px; box-shadow: 0 6px 24px rgba(0,0,0,.45); }
+  #tabMenu[hidden] { display: none; }
+  #tabMenu button { display: flex; justify-content: space-between; gap: 16px; width: 100%; background: none; border: 0; color: var(--fg); text-align: left; padding: 5px 10px; border-radius: 4px; cursor: pointer; font: inherit; font-size: 12px; }
+  #tabMenu button:hover:not(:disabled) { background: #2f4a77; }
+  #tabMenu button:disabled { color: #5f636a; cursor: default; }
+  #tabMenu kbd { color: var(--muted); background: none; border: 0; }
+  #tabMenu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
+  .row .open-mark { color: var(--accent); font-size: 9px; flex: none; }
   #toast { position: fixed; bottom: 16px; right: 16px; background: #3a3d41; border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 480px; }
   #toast.show { opacity: 1; }
   .help { color: var(--muted); font-size: 12px; padding: 8px; border-top: 1px solid var(--border); line-height: 1.6; }
@@ -125,17 +156,26 @@
   <div class="help">
     <kbd>Ctrl</kbd>+click import / identifier → go to definition (also while editing)<br />
     <kbd>Alt</kbd>+<kbd>←</kbd> back · <kbd>Ctrl</kbd>+<kbd>P</kbd> go to file · <kbd>E</kbd> edit · <kbd>Ctrl</kbd>+<kbd>S</kbd> save<br />
+    Tabs: <kbd>Ctrl</kbd>+<kbd>W</kbd> close · <kbd>Ctrl</kbd>+<kbd>Tab</kbd> next · <kbd>Ctrl</kbd>+click tabs to select several · right-click for more<br />
     Gutter: <span style="color:var(--m-add)">▌</span>added <span style="color:var(--m-mod)">▌</span>modified <span style="color:var(--m-del)">◂</span>deleted
   </div>
 </aside>
 <div id="resizer"></div>
 <main>
+  <div id="tabbar" hidden>
+    <div id="tabs" role="tablist"></div>
+    <div id="tabActions">
+      <button id="closePicked" hidden title="Close the selected tabs">Close selected</button>
+      <button id="closeAll" title="Close all tabs (Ctrl+Shift+W)">Close all</button>
+    </div>
+  </div>
   <div class="crumbs" id="crumbs"></div>
   <div id="viewWrap">
     <div id="view"><div class="empty">Pick a changed file on the left.</div></div>
     <div id="ruler" hidden title="Changes in this file"></div>
   </div>
 </main>
+<div id="tabMenu" hidden role="menu"></div>
 <div id="toast"></div>
 <script>
 'use strict';
@@ -163,6 +203,14 @@ const state = {
   expanded: new Set(['']),
   dirCache: new Map(),
   findResults: [],
+  // Open editor tabs. Each owns its own Ctrl+click chain and back stack; state.chain/state.back
+  // alias the active tab's arrays so navigation code works on whichever tab is showing.
+  tabs: [],
+  activeTab: null,
+  // Tabs Ctrl/Shift+clicked for "Close selected".
+  picked: new Set(),
+  // Previously active tabs, so Alt+← can return to the tab you came from.
+  tabHistory: [],
   // A "chain" starts when you pick something from the sidebar; each Ctrl+click adds a hop.
   chain: [],
   back: [],
@@ -441,7 +489,12 @@ function row({ html, title, selected, onClick, indent = 0 }) {
   return el;
 }
 
-const draftDot = (p) => (state.drafts.has(p) ? '<span class="dot" title="Unsaved edits">●</span>' : '');
+const draftDot = (p) => {
+  const unsaved = state.drafts.has(p) || (state.dirty && state.current?.path === p);
+  if (unsaved) return '<span class="dot" title="Unsaved edits">●</span>';
+  // Files with an open tab (other than the active one, which is already highlighted) get a small marker.
+  return state.tabs.some((t) => t !== state.activeTab && tabLoc(t).path === p) ? '<span class="open-mark" title="Open in a tab">◆</span>' : '';
+};
 
 // Highlight by path whatever the view (diff, file opened via Ctrl+click / Ctrl+P / "Open file").
 const isOpen = (p) => state.current?.path === p;
@@ -452,7 +505,12 @@ async function renderList() {
   const list = $('#list');
   const frag = document.createDocumentFragment();
   if (state.tab === 'changes') {
-    if (!state.changes.length) list.innerHTML = '<div class="empty">No changes.</div>';
+    if (!state.changes.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = 'No changes.';
+      frag.append(empty);
+    }
     for (const c of state.changes) {
       const slash = c.path.lastIndexOf('/');
       frag.append(row({
@@ -531,10 +589,176 @@ function stashDraft() {
   else state.drafts.delete(ed.loc.path);
 }
 
-function startChain(loc) {
-  if (state.current) state.back.push({ chain: state.chain, loc: state.current });
-  state.chain = [loc];
+// ---------- tabs ----------
+let tabSeq = 0;
+const tabLoc = (t) => t.chain[t.chain.length - 1];
+// A tab is "dirty" if it is the live editor with unsaved edits, or it parked a draft.
+const tabDirty = (t) => (t === state.activeTab && state.dirty) || t.chain.some((l) => state.drafts.has(l.path) && l.kind === 'file');
+
+function syncActive() {
+  const t = state.activeTab;
+  state.chain = t ? t.chain : [];
+  state.back = t ? t.back : [];
+}
+
+// Persist the active tab's chain back onto the tab after navigation reassigns state.chain.
+function commitActive() {
+  const t = state.activeTab;
+  if (!t) return;
+  t.chain = state.chain;
+  t.back = state.back;
+}
+
+const MAX_TAB_HISTORY = 50;
+function rememberTab() {
+  if (!state.activeTab) return;
+  state.tabHistory.push(state.activeTab);
+  if (state.tabHistory.length > MAX_TAB_HISTORY) state.tabHistory.shift();
+}
+
+function activateTab(t, { fromBack = false } = {}) {
+  if (t === state.activeTab) return;
+  if (!fromBack) rememberTab();
+  state.activeTab = t;
+  syncActive();
+  show(tabLoc(t));
+}
+
+// Sidebar / Ctrl+P: reuse a tab already showing that file, else open a new tab after the active one.
+function openInTab(loc) {
+  const existing = state.tabs.find((t) => {
+    const l = tabLoc(t);
+    return l.path === loc.path && l.kind === loc.kind;
+  });
+  if (existing) {
+    if (existing === state.activeTab) {
+      if (loc.line) scrollToLine(loc.line);
+      return;
+    }
+    return activateTab(existing);
+  }
+  const t = { id: ++tabSeq, chain: [loc], back: [] };
+  rememberTab();
+  const at = state.tabs.indexOf(state.activeTab);
+  state.tabs.splice(at < 0 ? state.tabs.length : at + 1, 0, t);
+  state.activeTab = t;
+  syncActive();
   show(loc);
+}
+
+function confirmCloseDirty(tabs) {
+  const dirty = tabs.filter(tabDirty);
+  if (!dirty.length) return true;
+  const names = dirty.map((t) => tabLoc(t).path.split('/').pop()).join(', ');
+  return confirm(`${dirty.length === 1 ? `"${names}" has` : `${dirty.length} tabs have`} unsaved changes${dirty.length > 1 ? ` (${names})` : ''}. Close and discard them?`);
+}
+
+function closeTabs(tabs) {
+  if (!tabs.length || !confirmCloseDirty(tabs)) return;
+  const closing = new Set(tabs);
+  const active = state.activeTab;
+  // Pick the neighbour of the active tab, preferring the right, among the tabs that stay open.
+  let next = active;
+  if (closing.has(active)) {
+    const i = state.tabs.indexOf(active);
+    next = state.tabs.slice(i + 1).find((t) => !closing.has(t)) ?? state.tabs.slice(0, i).reverse().find((t) => !closing.has(t)) ?? null;
+  }
+  for (const t of tabs) {
+    for (const l of t.chain) if (!state.tabs.some((o) => !closing.has(o) && o.chain.includes(l))) state.drafts.delete(l.path);
+    state.picked.delete(t);
+  }
+  if (closing.has(active)) {
+    // The live editor belongs to the closing tab; drop its edits instead of stashing them.
+    state.dirty = false;
+    state.ed = null;
+  }
+  state.tabs = state.tabs.filter((t) => !closing.has(t));
+  state.tabHistory = state.tabHistory.filter((t) => !closing.has(t));
+  if (next !== active) {
+    state.activeTab = next;
+    syncActive();
+    if (next) show(tabLoc(next));
+    else showEmpty();
+  } else {
+    renderTabs();
+    renderList();
+  }
+}
+
+const closeTab = (t) => closeTabs([t]);
+const closeOthers = (t) => closeTabs(state.tabs.filter((o) => o !== t));
+const closeToRight = (t) => closeTabs(state.tabs.slice(state.tabs.indexOf(t) + 1));
+const closeSaved = () => closeTabs(state.tabs.filter((t) => !tabDirty(t)));
+const closeAll = () => closeTabs(state.tabs.slice());
+
+function showEmpty() {
+  ++showSeq;
+  state.current = null;
+  state.editing = false;
+  state.dirty = false;
+  state.ed = null;
+  state.chain = [];
+  state.back = [];
+  $('#view').classList.remove('editing');
+  $('#ruler').hidden = true;
+  $('#view').innerHTML = '<div class="empty">No open files. Pick a file on the left, or press Ctrl+P.</div>';
+  renderCrumbs();
+  renderTabs();
+  renderList();
+}
+
+function renderTabs() {
+  const bar = $('#tabbar');
+  bar.hidden = state.tabs.length === 0;
+  const html = state.tabs
+    .map((t) => {
+      const l = tabLoc(t);
+      const name = l.path.split('/').pop();
+      const cls = ['tab', t === state.activeTab && 'on', state.picked.has(t) && 'picked', tabDirty(t) && 'dirty'].filter(Boolean).join(' ');
+      return `<div class="${cls}" role="tab" aria-selected="${t === state.activeTab}" data-id="${t.id}" title="${esc(l.path)}${tabDirty(t) ? ' — unsaved' : ''}">` +
+        `<span class="tn">${esc(name)}</span>${l.kind === 'diff' ? '<span class="tk">diff</span>' : ''}` +
+        `<span class="tx-close" data-close="${t.id}" title="Close (Ctrl+W)"><span>×</span></span></div>`;
+    })
+    .join('');
+  const tabsEl = $('#tabs');
+  if (tabsEl.dataset.v !== html) {
+    tabsEl.innerHTML = html;
+    tabsEl.dataset.v = html;
+  }
+  const picked = state.picked.size;
+  $('#closePicked').hidden = picked < 1;
+  $('#closePicked').textContent = `Close selected (${picked})`;
+  tabsEl.querySelector('.tab.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+const tabById = (id) => state.tabs.find((t) => t.id === Number(id));
+
+function openTabMenu(t, x, y) {
+  const menu = $('#tabMenu');
+  const i = state.tabs.indexOf(t);
+  const picked = [...state.picked];
+  const items = [
+    ['close', 'Close', 'Ctrl+W', true],
+    ['others', 'Close Others', '', state.tabs.length > 1],
+    ['right', 'Close to the Right', '', i < state.tabs.length - 1],
+    ['saved', 'Close Saved', '', state.tabs.some((o) => !tabDirty(o))],
+    ['all', 'Close All', '', true],
+  ];
+  menu.innerHTML =
+    (picked.length > 1 ? `<button data-act="picked">Close ${picked.length} Selected<kbd></kbd></button><hr>` : '') +
+    items.map(([act, label, key, on]) => `<button data-act="${act}" ${on ? '' : 'disabled'}>${label}<kbd>${key}</kbd></button>`).join('');
+  menu.dataset.id = t.id;
+  menu.hidden = false;
+  const r = menu.getBoundingClientRect();
+  menu.style.left = `${Math.min(x, innerWidth - r.width - 4)}px`;
+  menu.style.top = `${Math.min(y, innerHeight - r.height - 4)}px`;
+  menu.querySelector('button:not(:disabled)')?.focus();
+}
+
+const closeTabMenu = () => ($('#tabMenu').hidden = true);
+
+function startChain(loc) {
+  openInTab(loc);
 }
 
 function hop(loc) {
@@ -545,20 +769,30 @@ function hop(loc) {
   }
   state.back.push({ chain: state.chain, loc: state.current });
   state.chain = [...state.chain, loc];
+  commitActive();
   show(loc);
 }
 
 function goBack() {
   const prev = state.back.pop();
-  if (!prev) return;
-  state.chain = prev.chain;
-  show(prev.loc);
+  if (prev) {
+    state.chain = prev.chain;
+    commitActive();
+    show(prev.loc);
+    return;
+  }
+  // Nothing left in this tab: go back to the tab you came from, like VS Code's Go Back.
+  while (state.tabHistory.length) {
+    const t = state.tabHistory.pop();
+    if (t !== state.activeTab && state.tabs.includes(t)) return activateTab(t, { fromBack: true });
+  }
 }
 
 function jumpToCrumb(i) {
   if (i === state.chain.length - 1) return;
   state.back.push({ chain: state.chain, loc: state.current });
   state.chain = state.chain.slice(0, i + 1);
+  commitActive();
   show(state.chain[i]);
 }
 
@@ -623,8 +857,10 @@ $('#crumbs').addEventListener('click', (e) => {
 
 // Opening the file behind a diff isn't a "definition" jump, so it doesn't spend depth.
 function hopOrStart(loc) {
+  if (!state.activeTab) return openInTab(loc);
   state.back.push({ chain: state.chain, loc: state.current });
   state.chain = [...state.chain.slice(0, -1), loc];
+  commitActive();
   show(loc);
 }
 
@@ -652,6 +888,7 @@ async function show(loc) {
   // A revisited file reloads fresh, so don't offer Edit on its stale text in the meantime.
   if (loc.kind === 'file') loc.text = null;
   renderCrumbs();
+  renderTabs();
   // Expand the tree to the open file even when another tab is showing, so it's already there on switch.
   revealInTree(loc.path);
   renderList();
@@ -833,6 +1070,7 @@ function startEdit(draft) {
     if (!state.dirty) {
       state.dirty = true;
       renderCrumbs();
+      renderTabs();
     }
     renderEditorWindow(ed);
     clearTimeout(ed.marksTimer);
@@ -933,6 +1171,7 @@ async function save() {
     $('#view').classList.remove('editing');
     toast('Saved');
     renderCrumbs();
+    renderTabs();
     renderFile(cur);
     loadChanges();
   } catch (e) {
@@ -998,6 +1237,77 @@ $('#view').addEventListener('click', (e) => {
     onCtrlClick(tok);
   }
 });
+// Tabs: click to switch, Ctrl/Shift+click to multi-select, × or middle-click to close, right-click for the menu.
+let lastPickedTab = null;
+$('#tabs').addEventListener('click', (e) => {
+  const el = e.target.closest('.tab');
+  if (!el) return;
+  const t = tabById(el.dataset.id);
+  if (e.target.closest('[data-close]')) {
+    e.stopPropagation();
+    return closeTab(t);
+  }
+  if (e.ctrlKey || e.metaKey) {
+    state.picked.has(t) ? state.picked.delete(t) : state.picked.add(t);
+    lastPickedTab = t;
+    return renderTabs();
+  }
+  if (e.shiftKey && lastPickedTab) {
+    const [a, b] = [state.tabs.indexOf(lastPickedTab), state.tabs.indexOf(t)].sort((x, y) => x - y);
+    for (const o of state.tabs.slice(a, b + 1)) state.picked.add(o);
+    return renderTabs();
+  }
+  if (state.picked.size) state.picked.clear();
+  lastPickedTab = t;
+  activateTab(t);
+  renderTabs();
+});
+$('#tabs').addEventListener('auxclick', (e) => {
+  const el = e.target.closest('.tab');
+  if (el && e.button === 1) {
+    e.preventDefault();
+    closeTab(tabById(el.dataset.id));
+  }
+});
+// Stop the middle button starting autoscroll on the tab strip.
+$('#tabs').addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault());
+$('#tabs').addEventListener('contextmenu', (e) => {
+  const el = e.target.closest('.tab');
+  if (!el) return;
+  e.preventDefault();
+  const t = tabById(el.dataset.id);
+  // Right-clicking an unpicked tab acts on that tab alone, like a file manager.
+  if (!state.picked.has(t)) state.picked.clear();
+  renderTabs();
+  openTabMenu(t, e.clientX, e.clientY);
+});
+$('#tabMenu').addEventListener('click', (e) => {
+  const act = e.target.closest('button:not(:disabled)')?.dataset.act;
+  if (!act) return;
+  const t = tabById($('#tabMenu').dataset.id);
+  closeTabMenu();
+  if (!t) return;
+  ({
+    close: () => closeTab(t),
+    others: () => closeOthers(t),
+    right: () => closeToRight(t),
+    saved: closeSaved,
+    all: closeAll,
+    picked: () => closeTabs([...state.picked]),
+  })[act]();
+});
+addEventListener('mousedown', (e) => !e.target.closest('#tabMenu') && closeTabMenu());
+addEventListener('resize', closeTabMenu);
+$('#closePicked').onclick = () => closeTabs([...state.picked]);
+$('#closeAll').onclick = closeAll;
+
+function cycleTab(dir) {
+  const n = state.tabs.length;
+  if (n < 2) return;
+  const i = state.tabs.indexOf(state.activeTab);
+  activateTab(state.tabs[(i + dir + n) % n]);
+}
+
 $('#ruler').addEventListener('click', (e) => {
   const r = e.target.closest('.r[data-line]');
   if (r) scrollToLine(Number(r.dataset.line));
@@ -1006,7 +1316,29 @@ $('#ruler').addEventListener('click', (e) => {
 addEventListener('keydown', (e) => {
   if (e.key === 'Control' || e.key === 'Meta') document.body.classList.add('ctrl');
   const typing = e.target.matches('input, textarea, select');
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+  const mod = e.ctrlKey || e.metaKey;
+  const key = e.key.toLowerCase();
+  if (e.key === 'Escape' && !$('#tabMenu').hidden) {
+    closeTabMenu();
+  } else if (e.key === 'Escape' && state.picked.size && !typing) {
+    state.picked.clear();
+    renderTabs();
+  } else if (mod && e.shiftKey && key === 'w') {
+    e.preventDefault();
+    closeAll();
+  } else if (mod && key === 'w') {
+    // Ctrl+W closes the selected tabs if any, else the active tab (never the window).
+    e.preventDefault();
+    if (state.picked.size) closeTabs([...state.picked]);
+    else if (state.activeTab) closeTab(state.activeTab);
+  } else if ((mod && e.key === 'Tab') || (mod && (e.key === 'PageDown' || e.key === 'PageUp'))) {
+    e.preventDefault();
+    cycleTab(e.shiftKey || e.key === 'PageUp' ? -1 : 1);
+  } else if (e.altKey && /^[1-9]$/.test(e.key)) {
+    e.preventDefault();
+    const t = e.key === '9' ? state.tabs[state.tabs.length - 1] : state.tabs[Number(e.key) - 1];
+    if (t) activateTab(t);
+  } else if (mod && key === 's') {
     e.preventDefault();
     if (state.editing) save();
   } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
