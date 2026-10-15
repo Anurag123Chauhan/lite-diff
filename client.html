@@ -42,6 +42,20 @@
   .row.sel .gs-badge { filter: brightness(1.25); }
   .row .name { overflow: hidden; text-overflow: ellipsis; }
   .row .dir { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+  /* Source Control (stage / unstage / discard) */
+  .scm-group { display: flex; align-items: center; gap: 6px; padding: 4px 8px; margin-top: 2px; cursor: pointer; user-select: none;
+               font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .scm-group:hover { color: var(--fg); }
+  .scm-title { flex: 1; }
+  .scm-count { background: #3c3f43; color: var(--fg); border-radius: 9px; padding: 0 6px; font-weight: 600; letter-spacing: 0; }
+  .scm-actions { display: none; gap: 2px; margin-left: auto; flex: none; }
+  .scm-row:hover .scm-actions, .scm-group:hover .scm-actions, .scm-row.sel .scm-actions { display: flex; }
+  .scm-row:hover .dir { display: none; }
+  .scm-btn { background: none; border: 0; color: var(--muted); width: 20px; height: 20px; border-radius: 4px; cursor: pointer; font: 600 14px/1 "Segoe UI", sans-serif; padding: 0; }
+  .scm-btn:hover { background: #45484d; color: #fff; }
+  .scm-btn[data-scm="discard"]:hover { color: #ff8a80; }
+  .btn.close-file { font-size: 16px; line-height: 1; padding: 2px 9px; }
+  .btn.close-file:hover { background: #5a2a2a; border-color: #7a3a3a; }
   .dot { color: #e2c08d; font-size: 10px; flex: none; }
   .st { font-family: Consolas, monospace; font-weight: 700; width: 14px; text-align: center; flex: none; }
   .st-M { color: #e2c08d; } .st-A, .st-\? { color: #73c991; } .st-D { color: #f14c4c; } .st-R, .st-C { color: #4d8df7; }
@@ -135,7 +149,10 @@
   .row .open-mark { color: var(--accent); font-size: 9px; flex: none; }
   #toast { position: fixed; bottom: 16px; right: 16px; background: #3a3d41; border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 480px; }
   #toast.show { opacity: 1; }
-  .help { color: var(--muted); font-size: 12px; padding: 8px; border-top: 1px solid var(--border); line-height: 1.6; }
+  .help { color: var(--muted); font-size: 12px; padding: 6px 8px; border-top: 1px solid var(--border); line-height: 1.6; max-height: 45%; overflow: auto; flex: none; }
+  .help summary { cursor: pointer; user-select: none; font-weight: 600; }
+  .help summary:hover { color: var(--fg); }
+  .help[open] summary { margin-bottom: 4px; }
   kbd { background: var(--bg); border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; font-size: 11px; }
 </style>
 </head>
@@ -161,13 +178,15 @@
     <span id="count"></span>
   </div>
   <div class="list" id="list"></div>
-  <div class="help">
+  <details class="help" id="help">
+    <summary>Shortcuts &amp; tips</summary>
+    Source control: hover a file for <b>⎘</b> open · <b>↶</b> discard · <b>+</b> stage / <b>−</b> unstage; group headers act on all<br />
     <kbd>Ctrl</kbd>+click import / identifier → go to definition (also while editing)<br />
     <kbd>Alt</kbd>+<kbd>←</kbd> back · <kbd>Ctrl</kbd>+<kbd>P</kbd> go to file · <kbd>E</kbd> edit · <kbd>Ctrl</kbd>+<kbd>S</kbd> save<br />
     Tabs: <kbd>Ctrl</kbd>+<kbd>W</kbd> close · <kbd>Ctrl</kbd>+<kbd>Tab</kbd> next · <kbd>Ctrl</kbd>+click tabs to select several · right-click for more<br />
     Split: <kbd>Ctrl</kbd>+<kbd>\</kbd> or ⫿ open side by side · <kbd>Ctrl</kbd>+<kbd>1</kbd>/<kbd>2</kbd> switch group<br />
     Gutter: <span style="color:var(--m-add)">▌</span>added <span style="color:var(--m-mod)">▌</span>modified <span style="color:var(--m-del)">◂</span>deleted
-  </div>
+  </details>
 </aside>
 <div id="resizer"></div>
 <main id="panes"></main>
@@ -472,6 +491,50 @@ async function loadChanges() {
   if (state.tab !== 'find') renderList();
 }
 
+// Stage / unstage / discard one or more files, then refresh the list and any open tabs on them.
+async function scmAction(action, items) {
+  if (!items.length) return;
+  if (action === 'discard') {
+    const names = items.map((c) => c.path.split('/').pop());
+    const newFiles = items.filter((c) => c.status === '?' || c.status === 'A');
+    const what = items.length === 1 ? `"${names[0]}"` : `${items.length} files`;
+    const msg = newFiles.length === items.length
+      ? `Delete ${what}? ${items.length === 1 ? 'It is' : 'They are'} new and this cannot be undone.`
+      : `Discard all changes in ${what}? This cannot be undone.${newFiles.length ? ` ${newFiles.length} new file(s) will be deleted.` : ''}`;
+    if (!confirm(msg)) return;
+  }
+  try {
+    const body = JSON.stringify(items.map((c) => ({ path: c.path, old: c.old })));
+    const res = await api('/api/git', { action }, { method: 'POST', body, headers: { 'x-lite-diff': '1', 'content-type': 'application/json' } });
+    const past = { stage: 'Staged', unstage: 'Unstaged', discard: 'Discarded' }[action];
+    toast(`${past} ${items.length === 1 ? items[0].path.split('/').pop() : `${items.length} files`}`);
+    if (action === 'discard') afterDiscard(items, res.results);
+  } catch (e) {
+    toast(`${action[0].toUpperCase() + action.slice(1)} failed: ${e.message}`);
+  }
+  state.dirCache.clear();
+  await loadChanges();
+  // Diff tabs on these files show a different diff now (staging moves changes between "vs HEAD" groups only in git, not on disk).
+  for (const p of state.panes) if (p.current && items.some((c) => c.path === p.current.path) && !p.editing) show(p.current, p);
+}
+
+function afterDiscard(items, results) {
+  items.forEach((c, i) => {
+    state.drafts.delete(c.path);
+    for (const p of state.panes) {
+      // A live editor on a discarded file would save stale text back over the restored one.
+      if (p.editing && p.current?.path === c.path) Object.assign(p, { editing: false, dirty: false, ed: null });
+      if (results?.[i]?.deleted) {
+        const gone = p.tabs.filter((t) => tabLoc(t).path === c.path);
+        if (gone.length) closeTabsNoConfirm(gone, p);
+      }
+    }
+  });
+}
+
+// The file no longer exists, so there is nothing to confirm.
+const closeTabsNoConfirm = (tabs, pane) => closeTabs(tabs, pane, { force: true });
+
 const STATUS_LABEL = { M: 'Modified', A: 'Added', '?': 'Untracked', D: 'Deleted', R: 'Renamed', C: 'Copied' };
 
 async function loadDir(dir) {
@@ -514,15 +577,49 @@ async function renderList() {
       empty.textContent = 'No changes.';
       frag.append(empty);
     }
-    for (const c of state.changes) {
+    // VS Code's Source Control layout: "Staged Changes" above "Changes"; a partly staged file shows in both.
+    const staged = state.changes.filter((c) => c.staged);
+    const unstaged = state.changes.filter((c) => !c.staged || c.partial);
+    const changeRow = (c, group) => {
       const slash = c.path.lastIndexOf('/');
-      frag.append(row({
-        html: `<span class="st st-${c.status}">${c.status === '?' ? 'U' : c.status}</span><span class="name">${esc(c.path.slice(slash + 1))}</span>${draftDot(c.path)}<span class="dir">${esc(c.path.slice(0, slash))}</span>`,
-        title: c.old ? `${c.old} → ${c.path}` : c.path,
+      const stageBtn = group === 'staged'
+        ? '<button class="scm-btn" data-scm="unstage" title="Unstage Changes">−</button>'
+        : '<button class="scm-btn" data-scm="stage" title="Stage Changes">+</button>';
+      const el = row({
+        html: `<span class="st st-${c.status}">${c.status === '?' ? 'U' : c.status}</span><span class="name">${esc(c.path.slice(slash + 1))}</span>${draftDot(c.path)}<span class="dir">${esc(c.path.slice(0, slash))}</span>` +
+          `<span class="scm-actions"><button class="scm-btn" data-scm="open" title="Open File">⎘</button>` +
+          `${group === 'staged' ? '' : '<button class="scm-btn" data-scm="discard" title="Discard Changes">↶</button>'}${stageBtn}</span>`,
+        title: (c.old ? `${c.old} → ${c.path}` : c.path) + (c.partial ? ' — partly staged' : ''),
         selected: isOpen(c.path),
-        onClick: () => startChain({ kind: 'diff', path: c.path, old: c.old, status: c.status }),
-      }));
-    }
+        onClick: (e) => {
+          const act = e.target.closest('[data-scm]')?.dataset.scm;
+          if (act === 'open') return c.status !== 'D' && startChain({ kind: 'file', path: c.path, old: c.old });
+          if (act) return scmAction(act, [c]);
+          startChain({ kind: 'diff', path: c.path, old: c.old, status: c.status });
+        },
+      });
+      el.classList.add('scm-row');
+      return el;
+    };
+    const group = (key, label, items, actions) => {
+      if (!items.length) return;
+      const head = document.createElement('div');
+      head.className = 'scm-group';
+      head.innerHTML = `<span class="tw">${state.collapsed?.has(key) ? '▸' : '▾'}</span><span class="scm-title">${label}</span>` +
+        `<span class="scm-actions">${actions}</span><span class="scm-count">${items.length}</span>`;
+      head.onclick = (e) => {
+        const act = e.target.closest('[data-scm]')?.dataset.scm;
+        if (act) return scmAction(act, items);
+        state.collapsed ??= new Set();
+        state.collapsed.has(key) ? state.collapsed.delete(key) : state.collapsed.add(key);
+        renderList();
+      };
+      frag.append(head);
+      if (!state.collapsed?.has(key)) for (const c of items) frag.append(changeRow(c, key));
+    };
+    group('staged', 'Staged Changes', staged, '<button class="scm-btn" data-scm="unstage" title="Unstage All Changes">−</button>');
+    group('changes', 'Changes', unstaged,
+      '<button class="scm-btn" data-scm="discard" title="Discard All Changes">↶</button><button class="scm-btn" data-scm="stage" title="Stage All Changes">+</button>');
   } else if (state.tab === 'find') {
     for (const p of state.findResults) {
       frag.append(row({ html: `<span class="name">${esc(p)}</span>${draftDot(p)}`, title: p, selected: isOpen(p), onClick: () => startChain({ kind: 'file', path: p }) }));
@@ -781,8 +878,8 @@ function confirmCloseDirty(pane, tabs) {
 // Is this location still open in a tab somewhere once `closing` is gone?
 const stillOpen = (path, closing) => state.panes.some((p) => p.tabs.some((t) => !closing.has(t) && t.chain.some((l) => l.path === path)));
 
-function closeTabs(tabs, pane = state.activePane) {
-  if (!tabs.length || !confirmCloseDirty(pane, tabs)) return;
+function closeTabs(tabs, pane = state.activePane, { force = false } = {}) {
+  if (!tabs.length || (!force && !confirmCloseDirty(pane, tabs))) return;
   const closing = new Set(tabs);
   const active = pane.activeTab;
   // Pick the neighbour of the active tab, preferring the right, among the tabs that stay open.
@@ -974,7 +1071,8 @@ function renderCrumbs(pane = state.activePane) {
   setPart(pane, 'actions', `${c?.kind === 'diff' && c.status !== 'D' ? '<button class="btn" data-act="openFile">Open file</button>' : ''}
     ${other && c?.kind === 'file' ? '<span class="depth" title="Save or discard there to edit here">editing in other group</span>' : ''}
     ${canEdit && !pane.editing ? '<button class="btn" data-act="edit">Edit (E)</button>' : ''}
-    ${pane.editing ? '<button class="btn" data-act="save">Save (Ctrl+S)</button><button class="btn" data-act="cancel">Discard</button>' : ''}`);
+    ${pane.editing ? '<button class="btn" data-act="save">Save (Ctrl+S)</button><button class="btn" data-act="cancel">Discard</button>' : ''}
+    ${pane.activeTab ? '<button class="btn close-file" data-act="closeFile" title="Close file (Ctrl+W)">×</button>' : ''}`);
 }
 
 // Opening the file behind a diff isn't a "definition" jump, so it doesn't spend depth.
@@ -1368,6 +1466,8 @@ function wirePane(pane) {
         return save(pane);
       case 'cancel':
         return discardEdits(pane);
+      case 'closeFile':
+        return pane.activeTab && closeTab(pane.activeTab, pane);
     }
   });
 
@@ -1535,6 +1635,14 @@ resizer.addEventListener('pointerdown', (e) => {
   resizer.addEventListener('pointermove', move);
   resizer.addEventListener('pointerup', () => resizer.removeEventListener('pointermove', move), { once: true });
 });
+
+// Remember whether the tips panel is open.
+try {
+  $('#help').open = localStorage.getItem('lite-diff-help') === '1';
+  $('#help').addEventListener('toggle', () => localStorage.setItem('lite-diff-help', $('#help').open ? '1' : '0'));
+} catch {
+  // Storage blocked: the panel just starts closed.
+}
 
 state.panes = [createPane()];
 state.activePane = state.panes[0];

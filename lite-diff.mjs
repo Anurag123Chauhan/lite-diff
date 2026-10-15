@@ -132,8 +132,53 @@ async function listChanges(mode) {
     }
   }
   for (const p of untracked.split('\0')) if (p) changes.push({ status: '?', path: p });
+  // Mark what is fully / partly staged, like VS Code's "Staged Changes" group.
+  const [staged, unstaged] = await Promise.all([
+    git(['diff', '--cached', '--name-only', '-z', '-M'], { allowFail: true }),
+    git(['diff', '--name-only', '-z'], { allowFail: true }),
+  ]);
+  const stagedSet = new Set(staged.split('\0').filter(Boolean));
+  const unstagedSet = new Set(unstaged.split('\0').filter(Boolean));
+  for (const c of changes) {
+    c.staged = stagedSet.has(c.path);
+    c.partial = c.staged && unstagedSet.has(c.path);
+  }
   changes.sort((a, b) => a.path.localeCompare(b.path));
   return changes;
+}
+
+// Stage / unstage / discard, mirroring VS Code's Source Control actions.
+async function gitAction(action, rel, old) {
+  toAbs(rel);
+  if (old) toAbs(old);
+  const paths = old ? [old, rel] : [rel];
+  const tracked = (await git(['ls-files', '--error-unmatch', '--', rel], { allowFail: true })).trim() !== '';
+  const inHead = (await git(['rev-parse', '--verify', '-q', `HEAD:${old || rel}`], { allowFail: true })).trim() !== '';
+  switch (action) {
+    case 'stage':
+      // -A also records deletions and the removal half of a rename.
+      await git(['add', '-A', '--', ...paths]);
+      return { ok: true };
+    case 'unstage':
+      if (inHead) await git(['restore', '--staged', '--', ...paths]);
+      else await git(['rm', '--cached', '-q', '--', rel]);
+      return { ok: true };
+    case 'discard':
+      if (!inHead) {
+        // New file (untracked or only staged): discarding removes it, as VS Code does.
+        if (tracked) await git(['rm', '--cached', '-q', '-f', '--', rel]);
+        await fsp.rm(toAbs(rel), { force: true });
+        return { ok: true, deleted: true };
+      }
+      await git(['restore', '--source=HEAD', '--staged', '--worktree', '--', old || rel]);
+      if (old && old !== rel) {
+        await git(['rm', '--cached', '-q', '-f', '--ignore-unmatch', '--', rel]);
+        await fsp.rm(toAbs(rel), { force: true });
+      }
+      return { ok: true };
+    default:
+      throw httpError(400, `Unknown action "${action}"`);
+  }
 }
 
 async function fileDiff(rel, old, mode) {
@@ -471,6 +516,14 @@ async function route(pathname, q, req) {
       if (statKind(p) !== 'file') throw httpError(404, 'File not found');
       await fsp.writeFile(p, await readBody(req), 'utf8');
       return { ok: true };
+    }
+    case '/api/git': {
+      if (req.method !== 'POST') throw httpError(405, 'POST required');
+      const paths = JSON.parse((await readBody(req)) || '[]');
+      if (!Array.isArray(paths) || !paths.length) throw httpError(400, 'No files given');
+      const results = [];
+      for (const { path: rel, old } of paths) results.push(await gitAction(q.action, rel, old));
+      return { ok: true, results };
     }
     default:
       throw httpError(404, 'Not found');

@@ -4,7 +4,8 @@ A tiny, low-memory git diff viewer and file editor for big repos. Use it when yo
 
 - Zero dependencies: one Node script plus one HTML file
 - No indexing, file watching or language server, so it idles at ~0% CPU and ~60 MB RAM
-- Changes view (uncommitted or whole branch vs `main`) with coloured diffs
+- Changes view (uncommitted or whole branch vs `main`) with coloured diffs, grouped into Staged Changes and Changes
+- Source control like VS Code: hover a file to stage (+), unstage (−) or discard (↶) it; group headers stage, unstage or discard all. Discard asks first, and discarding a new file deletes it
 - Lazy-loading file tree (coloured by git status) and Ctrl+P file search
 - Split editor: open two files side by side (Ctrl+\ or the ⫿ button), each group with its own tabs
 - Editor tabs: open several files, each with its own Ctrl+click history; close one, several (Ctrl/Shift+click to select), others, to the right, saved, or all
@@ -42,7 +43,7 @@ On Windows you can also run `lite-diff.cmd [repo-path] [options]`. With no repo 
 | E | Edit current file |
 | Ctrl+S | Save |
 | R | Refresh |
-| Ctrl+W | Close tab (or the selected tabs) |
+| Ctrl+W or × in the file header | Close the open file (or the selected tabs) |
 | Ctrl+Shift+W | Close all tabs |
 | Ctrl+Tab / Ctrl+PageDown | Next tab (Shift / PageUp for previous) |
 | Alt+1…9 | Go to tab 1…8, or the last tab |
