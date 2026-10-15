@@ -33,6 +33,13 @@
   .row.sel { background: #2f4a77; box-shadow: inset 3px 0 var(--accent); color: #fff; }
   .row.sel .name { font-weight: 600; }
   .row.sel .dir { color: #b9c6dc; }
+  .gs-M { color: #e2c08d; } .gs-A, .gs-U { color: #73c991; } .gs-R, .gs-C { color: #6ea8fe; } .gs-D { color: #f14c4c; text-decoration: line-through; }
+  .gs-dir { color: #d7c39a; }
+  .gs-dot { color: #e2c08d; font-size: 8px; margin-left: auto; padding-right: 4px; }
+  .gs-badge { margin-left: auto; font: 700 11px Consolas, monospace; padding-right: 4px; }
+  /* The open file keeps its git colour (brightened) so you can see both "open" and "changed". */
+  .row.sel .name.gs-M { color: #ffd479; } .row.sel .name.gs-A, .row.sel .name.gs-U { color: #8ff0a8; } .row.sel .name.gs-R, .row.sel .name.gs-C { color: #a8cbff; }
+  .row.sel .gs-badge { filter: brightness(1.25); }
   .row .name { overflow: hidden; text-overflow: ellipsis; }
   .row .dir { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
   .dot { color: #e2c08d; font-size: 10px; flex: none; }
@@ -408,8 +415,15 @@ async function loadChanges() {
     toast(e.message);
   }
   $('#count').textContent = `${state.changes.length} file${state.changes.length === 1 ? '' : 's'}`;
-  if (state.tab === 'changes') renderList();
+  state.statusByPath = new Map(state.changes.map((c) => [c.path, c.status]));
+  state.changedDirs = new Set();
+  for (const c of state.changes) {
+    for (let i = c.path.indexOf('/'); i > 0; i = c.path.indexOf('/', i + 1)) state.changedDirs.add(c.path.slice(0, i));
+  }
+  if (state.tab !== 'find') renderList();
 }
+
+const STATUS_LABEL = { M: 'Modified', A: 'Added', '?': 'Untracked', D: 'Deleted', R: 'Renamed', C: 'Copied' };
 
 async function loadDir(dir) {
   if (!state.dirCache.has(dir)) state.dirCache.set(dir, (await api('/api/ls', { dir })).entries);
@@ -458,7 +472,8 @@ async function renderList() {
         const p = dir ? `${dir}/${e.name}` : e.name;
         const open = state.expanded.has(p);
         frag.append(row({
-          html: `<span class="tw">${e.dir ? (open ? '▾' : '▸') : ''}</span><span class="name">${esc(e.name)}</span>${e.dir ? '' : draftDot(p)}`,
+          html: treeRowHtml(e, p, open),
+          title: treeRowTitle(e, p),
           indent: depth,
           selected: !e.dir && isOpen(p),
           onClick: () => {
@@ -482,6 +497,24 @@ async function renderList() {
   list.replaceChildren(frag);
   list.scrollTop = scrollTop;
   list.querySelector('.row.sel')?.scrollIntoView({ block: 'nearest' });
+}
+
+// Git status colours in the tree, like VS Code: the file name takes its status colour, folders with changes get a dot.
+function treeRowHtml(e, p, open) {
+  const twisty = `<span class="tw">${e.dir ? (open ? '▾' : '▸') : ''}</span>`;
+  if (e.dir) {
+    const changed = state.changedDirs?.has(p);
+    return `${twisty}<span class="name${changed ? ' gs-dir' : ''}">${esc(e.name)}</span>${changed ? '<span class="gs-dot">●</span>' : ''}`;
+  }
+  const st = state.statusByPath?.get(p);
+  const badge = st ? `<span class="gs-badge st-${st}">${st === '?' ? 'U' : st}</span>` : '';
+  return `${twisty}<span class="name${st ? ` gs gs-${st === '?' ? 'U' : st}` : ''}">${esc(e.name)}</span>${draftDot(p)}${badge}`;
+}
+
+function treeRowTitle(e, p) {
+  if (e.dir) return state.changedDirs?.has(p) ? `${p} — contains changes` : p;
+  const st = state.statusByPath?.get(p);
+  return st ? `${p} — ${STATUS_LABEL[st] ?? st}` : p;
 }
 
 function revealInTree(path) {
@@ -619,7 +652,8 @@ async function show(loc) {
   // A revisited file reloads fresh, so don't offer Edit on its stale text in the meantime.
   if (loc.kind === 'file') loc.text = null;
   renderCrumbs();
-  if (state.tab === 'files') revealInTree(loc.path);
+  // Expand the tree to the open file even when another tab is showing, so it's already there on switch.
+  revealInTree(loc.path);
   renderList();
   const view = $('#view');
   view.innerHTML = '<div class="empty">Loading…</div>';
