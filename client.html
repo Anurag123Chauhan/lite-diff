@@ -46,7 +46,15 @@
   .st { font-family: Consolas, monospace; font-weight: 700; width: 14px; text-align: center; flex: none; }
   .st-M { color: #e2c08d; } .st-A, .st-\? { color: #73c991; } .st-D { color: #f14c4c; } .st-R, .st-C { color: #4d8df7; }
   .tw { width: 12px; color: var(--muted); flex: none; text-align: center; }
-  main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  main { display: flex; min-width: 0; min-height: 0; }
+  /* Editor groups (split view): each pane has its own tabs, breadcrumbs, view and ruler. */
+  .pane { flex: 1 1 0; display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
+  .pane-split { width: 4px; flex: none; background: var(--border); cursor: col-resize; }
+  .pane-split:hover, .pane-split.drag { background: var(--accent); }
+  .pane.inactive .tabbar { background: #1f2023; }
+  .pane.inactive .tab.on { border-top-color: #4a4d52; color: #c8c8c8; }
+  .pane.inactive .crumbs { opacity: .8; }
+  .pane-actions button.split { font-size: 14px; }
   .crumbs { display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--border); background: var(--panel); flex-wrap: wrap; min-height: 36px; }
   .crumbs .c { color: var(--muted); cursor: pointer; font-family: Consolas, monospace; font-size: 12px; }
   .crumbs .c:hover { color: var(--fg); text-decoration: underline; }
@@ -57,12 +65,12 @@
   .crumbs .depth, .crumbs .chg { color: var(--muted); font-size: 12px; font-family: Consolas, monospace; }
   .crumbs .depth.full { color: #e2c08d; }
   .chg .a { color: var(--m-add); } .chg .m { color: var(--m-mod); } .chg .d { color: var(--m-del); }
-  #viewWrap { flex: 1; min-height: 0; display: flex; }
-  #view { flex: 1; min-width: 0; overflow: auto; font: var(--code-font); position: relative; }
-  #view.editing { overflow: hidden; }
-  #ruler { width: 12px; flex: none; position: relative; background: #24262a; border-left: 1px solid var(--border); }
-  #ruler .r { position: absolute; left: 2px; right: 2px; min-height: 2px; cursor: pointer; border-radius: 1px; }
-  #ruler .r.ma { background: var(--m-add); } #ruler .r.mm { background: var(--m-mod); } #ruler .r.md { background: var(--m-del); height: 2px; }
+  .viewWrap { flex: 1; min-height: 0; display: flex; }
+  .view { flex: 1; min-width: 0; overflow: auto; font: var(--code-font); position: relative; }
+  .view.editing { overflow: hidden; }
+  .ruler { width: 12px; flex: none; position: relative; background: #24262a; border-left: 1px solid var(--border); }
+  .ruler .r { position: absolute; left: 2px; right: 2px; min-height: 2px; cursor: pointer; border-radius: 1px; }
+  .ruler .r.ma { background: var(--m-add); } .ruler .r.mm { background: var(--m-mod); } .ruler .r.md { background: var(--m-del); height: 2px; }
   .empty { color: var(--muted); padding: 40px; text-align: center; font-family: "Segoe UI", sans-serif; }
   table.code { border-collapse: collapse; min-width: 100%; }
   table.code td { padding: 0 10px; white-space: pre; vertical-align: top; }
@@ -80,7 +88,7 @@
   .md::before, .mde::after { content: ''; position: absolute; right: 0; border: 4px solid transparent; border-right-color: var(--m-del); }
   .md::before { top: -4px; } .mde::after { bottom: -4px; }
   .k { color: var(--kw); } .s { color: var(--str); } .c-m { color: var(--com); font-style: italic; } .n { color: var(--num); } .t { color: var(--type); }
-  body.ctrl #view .i:hover, body.ctrl #view .s.imp:hover { text-decoration: underline; color: var(--accent); cursor: pointer; }
+  body.ctrl .view .i:hover, body.ctrl .view .s.imp:hover { text-decoration: underline; color: var(--accent); cursor: pointer; }
   /* Editor: a transparent textarea over a highlighted copy that only renders the visible lines. */
   .ed { position: absolute; inset: 0; display: flex; background: var(--bg); }
   .ed-gutter { flex: none; position: relative; overflow: hidden; background: var(--bg); color: #5f636a; user-select: none; border-right: 1px solid #2c2e32; font: var(--code-font); }
@@ -95,9 +103,9 @@
   body.ctrl .ed-ta { pointer-events: none; }
   body.ctrl .ed-hl { pointer-events: auto; }
   /* Editor tabs */
-  #tabbar { display: flex; align-items: stretch; background: #232427; border-bottom: 1px solid var(--border); min-height: 34px; }
-  #tabbar[hidden] { display: none; }
-  #tabs { flex: 1; display: flex; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+  .tabbar { display: flex; align-items: stretch; background: #232427; border-bottom: 1px solid var(--border); min-height: 34px; }
+  .tabbar[hidden] { display: none; }
+  .tabstrip { flex: 1; display: flex; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
   .tab { display: flex; align-items: center; gap: 6px; padding: 0 6px 0 12px; max-width: 220px; min-width: 0; flex: none; cursor: pointer; color: var(--muted);
          border-right: 1px solid var(--border); border-top: 2px solid transparent; font-size: 12px; user-select: none; }
   .tab:hover { background: #2a2c30; }
@@ -113,10 +121,10 @@
   .tab.dirty .tx-close > span { display: none; }
   .tab.dirty:hover .tx-close::before { content: none; }
   .tab.dirty:hover .tx-close > span { display: inline; }
-  #tabActions { display: flex; align-items: center; gap: 4px; padding: 0 6px; border-left: 1px solid var(--border); }
-  #tabActions button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; font: inherit; font-size: 12px; white-space: nowrap; }
-  #tabActions button:hover { background: #3c3f43; color: #fff; }
-  #tabActions button[hidden] { display: none; }
+  .pane-actions { display: flex; align-items: center; gap: 4px; padding: 0 6px; border-left: 1px solid var(--border); }
+  .pane-actions button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; font: inherit; font-size: 12px; white-space: nowrap; }
+  .pane-actions button:hover { background: #3c3f43; color: #fff; }
+  .pane-actions button[hidden] { display: none; }
   #tabMenu { position: fixed; z-index: 10; background: #2b2d30; border: 1px solid var(--border); border-radius: 6px; padding: 4px; min-width: 190px; box-shadow: 0 6px 24px rgba(0,0,0,.45); }
   #tabMenu[hidden] { display: none; }
   #tabMenu button { display: flex; justify-content: space-between; gap: 16px; width: 100%; background: none; border: 0; color: var(--fg); text-align: left; padding: 5px 10px; border-radius: 4px; cursor: pointer; font: inherit; font-size: 12px; }
@@ -157,24 +165,29 @@
     <kbd>Ctrl</kbd>+click import / identifier → go to definition (also while editing)<br />
     <kbd>Alt</kbd>+<kbd>←</kbd> back · <kbd>Ctrl</kbd>+<kbd>P</kbd> go to file · <kbd>E</kbd> edit · <kbd>Ctrl</kbd>+<kbd>S</kbd> save<br />
     Tabs: <kbd>Ctrl</kbd>+<kbd>W</kbd> close · <kbd>Ctrl</kbd>+<kbd>Tab</kbd> next · <kbd>Ctrl</kbd>+click tabs to select several · right-click for more<br />
+    Split: <kbd>Ctrl</kbd>+<kbd>\</kbd> or ⫿ open side by side · <kbd>Ctrl</kbd>+<kbd>1</kbd>/<kbd>2</kbd> switch group<br />
     Gutter: <span style="color:var(--m-add)">▌</span>added <span style="color:var(--m-mod)">▌</span>modified <span style="color:var(--m-del)">◂</span>deleted
   </div>
 </aside>
 <div id="resizer"></div>
-<main>
-  <div id="tabbar" hidden>
-    <div id="tabs" role="tablist"></div>
-    <div id="tabActions">
-      <button id="closePicked" hidden title="Close the selected tabs">Close selected</button>
-      <button id="closeAll" title="Close all tabs (Ctrl+Shift+W)">Close all</button>
+<main id="panes"></main>
+<template id="paneTpl">
+  <section class="pane">
+    <div class="tabbar" hidden>
+      <div class="tabstrip" role="tablist"></div>
+      <div class="pane-actions">
+        <button class="close-picked" hidden title="Close the selected tabs">Close selected</button>
+        <button class="split" title="Split: open the current file side by side (Ctrl+\)">⫿</button>
+        <button class="close-all" title="Close all tabs in this group (Ctrl+Shift+W)">Close all</button>
+      </div>
     </div>
-  </div>
-  <div class="crumbs" id="crumbs"></div>
-  <div id="viewWrap">
-    <div id="view"><div class="empty">Pick a changed file on the left.</div></div>
-    <div id="ruler" hidden title="Changes in this file"></div>
-  </div>
-</main>
+    <div class="crumbs"></div>
+    <div class="viewWrap">
+      <div class="view"><div class="empty">Pick a changed file on the left.</div></div>
+      <div class="ruler" hidden title="Changes in this file"></div>
+    </div>
+  </section>
+</template>
 <div id="tabMenu" hidden role="menu"></div>
 <div id="toast"></div>
 <script>
@@ -203,23 +216,11 @@ const state = {
   expanded: new Set(['']),
   dirCache: new Map(),
   findResults: [],
-  // Open editor tabs. Each owns its own Ctrl+click chain and back stack; state.chain/state.back
-  // alias the active tab's arrays so navigation code works on whichever tab is showing.
-  tabs: [],
-  activeTab: null,
-  // Tabs Ctrl/Shift+clicked for "Close selected".
-  picked: new Set(),
-  // Previously active tabs, so Alt+← can return to the tab you came from.
-  tabHistory: [],
-  // A "chain" starts when you pick something from the sidebar; each Ctrl+click adds a hop.
-  chain: [],
-  back: [],
-  current: null,
-  editing: false,
-  dirty: false,
-  // Unsaved edits survive Ctrl+click navigation: path -> { text, scrollTop }.
+  // Editor groups shown side by side (VS Code's split editor). Each pane owns its tabs and view.
+  panes: [],
+  activePane: null,
+  // Unsaved edits, shared by every pane: path -> { text, scrollTop }.
   drafts: new Map(),
-  ed: null,
 };
 
 async function api(path, params = {}, init) {
@@ -421,9 +422,9 @@ function markClass(info, i, total) {
   return cls;
 }
 
-function renderRuler(info, total) {
-  const ruler = $('#ruler');
-  const cur = state.current;
+function renderRuler(info, total, pane = state.activePane) {
+  const ruler = pane.el.ruler;
+  const cur = pane.current;
   if (!info || cur?.kind !== 'file' || !total) {
     ruler.hidden = true;
     return;
@@ -452,7 +453,7 @@ function setTab(tab) {
   state.tab = tab;
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   $('#changesBar').style.display = tab === 'changes' ? '' : 'none';
-  if (tab === 'files' && state.current) revealInTree(state.current.path);
+  if (tab === 'files' && cur()) revealInTree(cur().path);
   renderList();
 }
 
@@ -490,14 +491,16 @@ function row({ html, title, selected, onClick, indent = 0 }) {
 }
 
 const draftDot = (p) => {
-  const unsaved = state.drafts.has(p) || (state.dirty && state.current?.path === p);
+  const unsaved = state.drafts.has(p) || state.panes.some((pn) => pn.dirty && pn.current?.path === p);
   if (unsaved) return '<span class="dot" title="Unsaved edits">●</span>';
   // Files with an open tab (other than the active one, which is already highlighted) get a small marker.
-  return state.tabs.some((t) => t !== state.activeTab && tabLoc(t).path === p) ? '<span class="open-mark" title="Open in a tab">◆</span>' : '';
+  return state.panes.some((pn) => pn.tabs.some((t) => !(pn === state.activePane && t === pn.activeTab) && tabLoc(t).path === p))
+    ? '<span class="open-mark" title="Open in a tab">◆</span>'
+    : '';
 };
 
 // Highlight by path whatever the view (diff, file opened via Ctrl+click / Ctrl+P / "Open file").
-const isOpen = (p) => state.current?.path === p;
+const isOpen = (p) => cur()?.path === p;
 
 let listSeq = 0;
 async function renderList() {
@@ -580,173 +583,308 @@ function revealInTree(path) {
   for (let i = 1; i < parts.length; i++) state.expanded.add(parts.slice(0, i).join('/'));
 }
 
+// ---------- panes (editor groups) ----------
+// The split editor: each pane is an independent tab group with its own view, Ctrl+click chains and editor.
+const MAX_PANES = 2;
+const MAX_TAB_HISTORY = 50;
+let paneSeq = 0;
+let tabSeq = 0;
+
+const cur = () => state.activePane?.current ?? null;
+const tabLoc = (t) => t.chain[t.chain.length - 1];
+const fileOf = (l) => l.path.split('/').pop();
+
+function createPane() {
+  const node = $('#paneTpl').content.firstElementChild.cloneNode(true);
+  const pane = {
+    id: ++paneSeq,
+    el: {
+      root: node,
+      tabbar: node.querySelector('.tabbar'),
+      tabs: node.querySelector('.tabstrip'),
+      crumbs: node.querySelector('.crumbs'),
+      view: node.querySelector('.view'),
+      ruler: node.querySelector('.ruler'),
+      closePicked: node.querySelector('.close-picked'),
+      closeAll: node.querySelector('.close-all'),
+      split: node.querySelector('.split'),
+    },
+    tabs: [],
+    activeTab: null,
+    // Tabs Ctrl/Shift+clicked for "Close selected".
+    picked: new Set(),
+    lastPicked: null,
+    // Previously active tabs, so Alt+← can return to the tab you came from.
+    tabHistory: [],
+    // The active tab's Ctrl+click chain and back stack (aliased onto the tab by commit()).
+    chain: [],
+    back: [],
+    current: null,
+    editing: false,
+    dirty: false,
+    ed: null,
+    showSeq: 0,
+    crumbParts: new Map(),
+  };
+  node.dataset.pane = pane.id;
+  wirePane(pane);
+  return pane;
+}
+
+function layoutPanes() {
+  const host = $('#panes');
+  const nodes = [];
+  state.panes.forEach((p, i) => {
+    if (i) nodes.push(splitter(i));
+    nodes.push(p.el.root);
+    p.el.split.hidden = state.panes.length >= MAX_PANES;
+  });
+  host.replaceChildren(...nodes);
+  markActivePane();
+}
+
+// Only toggles classes: re-inserting the pane nodes here would cancel the click that focused it.
+function markActivePane() {
+  for (const p of state.panes) p.el.root.classList.toggle('inactive', state.panes.length > 1 && p !== state.activePane);
+}
+
+// Drag the divider between two panes to resize them.
+function splitter(i) {
+  const bar = document.createElement('div');
+  bar.className = 'pane-split';
+  bar.addEventListener('pointerdown', (e) => {
+    const [a, b] = [state.panes[i - 1].el.root, state.panes[i].el.root];
+    const total = a.offsetWidth + b.offsetWidth;
+    const left = a.getBoundingClientRect().left;
+    bar.setPointerCapture(e.pointerId);
+    bar.classList.add('drag');
+    const move = (ev) => {
+      const w = Math.min(total - 160, Math.max(160, ev.clientX - left));
+      a.style.flex = `0 0 ${w}px`;
+      b.style.flex = '1 1 0';
+    };
+    bar.addEventListener('pointermove', move);
+    bar.addEventListener('pointerup', () => {
+      bar.removeEventListener('pointermove', move);
+      bar.classList.remove('drag');
+    }, { once: true });
+  });
+  return bar;
+}
+
+function focusPane(pane) {
+  if (state.activePane === pane) return;
+  state.activePane = pane;
+  markActivePane();
+  renderList();
+}
+
+// Split: open the active file in a new pane to the right (or focus the existing second pane).
+function splitPane(loc = cur()) {
+  if (state.panes.length >= MAX_PANES) {
+    const other = state.panes.find((p) => p !== state.activePane);
+    focusPane(other);
+    if (loc) openInTab({ ...loc, line: undefined }, other);
+    return;
+  }
+  const pane = createPane();
+  state.panes.splice(state.panes.indexOf(state.activePane) + 1, 0, pane);
+  state.activePane = pane;
+  layoutPanes();
+  if (loc) openInTab({ kind: loc.kind, path: loc.path, old: loc.old, status: loc.status }, pane);
+  else showEmpty(pane);
+}
+
+// Closing the last tab of a non-primary pane removes the pane, like VS Code.
+function removePane(pane) {
+  if (state.panes.length < 2) return showEmpty(pane);
+  const i = state.panes.indexOf(pane);
+  state.panes.splice(i, 1);
+  for (const p of state.panes) p.el.root.style.flex = '';
+  if (state.activePane === pane) state.activePane = state.panes[Math.max(0, i - 1)];
+  layoutPanes();
+  renderList();
+}
+
 // ---------- navigation ----------
 // Leaving an edited file keeps its edits as a draft instead of prompting.
-function stashDraft() {
-  const ed = state.ed;
+function stashDraft(pane) {
+  const ed = pane.ed;
   if (!ed) return;
-  if (state.dirty) state.drafts.set(ed.loc.path, { text: ed.ta.value, scrollTop: ed.ta.scrollTop });
+  if (pane.dirty) state.drafts.set(ed.loc.path, { text: ed.ta.value, scrollTop: ed.ta.scrollTop });
   else state.drafts.delete(ed.loc.path);
 }
 
-// ---------- tabs ----------
-let tabSeq = 0;
-const tabLoc = (t) => t.chain[t.chain.length - 1];
-// A tab is "dirty" if it is the live editor with unsaved edits, or it parked a draft.
-const tabDirty = (t) => (t === state.activeTab && state.dirty) || t.chain.some((l) => state.drafts.has(l.path) && l.kind === 'file');
+// Another pane is live-editing this file: show it read-only here so the two can't overwrite each other.
+const editingElsewhere = (pane, path) => state.panes.find((p) => p !== pane && p.editing && p.current?.path === path);
 
-function syncActive() {
-  const t = state.activeTab;
-  state.chain = t ? t.chain : [];
-  state.back = t ? t.back : [];
+// A tab is "dirty" if it is a live editor with unsaved edits, or it parked a draft.
+const tabDirty = (pane, t) => (t === pane.activeTab && pane.dirty) || t.chain.some((l) => l.kind === 'file' && state.drafts.has(l.path));
+
+function syncActive(pane) {
+  const t = pane.activeTab;
+  pane.chain = t ? t.chain : [];
+  pane.back = t ? t.back : [];
 }
 
-// Persist the active tab's chain back onto the tab after navigation reassigns state.chain.
-function commitActive() {
-  const t = state.activeTab;
+// Persist the pane's chain back onto its active tab after navigation reassigns pane.chain.
+function commit(pane) {
+  const t = pane.activeTab;
   if (!t) return;
-  t.chain = state.chain;
-  t.back = state.back;
+  t.chain = pane.chain;
+  t.back = pane.back;
 }
 
-const MAX_TAB_HISTORY = 50;
-function rememberTab() {
-  if (!state.activeTab) return;
-  state.tabHistory.push(state.activeTab);
-  if (state.tabHistory.length > MAX_TAB_HISTORY) state.tabHistory.shift();
+function rememberTab(pane) {
+  if (!pane.activeTab) return;
+  pane.tabHistory.push(pane.activeTab);
+  if (pane.tabHistory.length > MAX_TAB_HISTORY) pane.tabHistory.shift();
 }
 
-function activateTab(t, { fromBack = false } = {}) {
-  if (t === state.activeTab) return;
-  if (!fromBack) rememberTab();
-  state.activeTab = t;
-  syncActive();
-  show(tabLoc(t));
+function activateTab(t, pane = state.activePane, { fromBack = false } = {}) {
+  if (t === pane.activeTab) return;
+  if (!fromBack) rememberTab(pane);
+  pane.activeTab = t;
+  syncActive(pane);
+  show(tabLoc(t), pane);
 }
 
-// Sidebar / Ctrl+P: reuse a tab already showing that file, else open a new tab after the active one.
-function openInTab(loc) {
-  const existing = state.tabs.find((t) => {
+// Sidebar / Ctrl+P: reuse this pane's tab for that file if open, else open a new tab after the active one.
+function openInTab(loc, pane = state.activePane) {
+  const existing = pane.tabs.find((t) => {
     const l = tabLoc(t);
     return l.path === loc.path && l.kind === loc.kind;
   });
   if (existing) {
-    if (existing === state.activeTab) {
-      if (loc.line) scrollToLine(loc.line);
+    if (existing === pane.activeTab) {
+      if (loc.line) scrollToLine(loc.line, pane);
       return;
     }
-    return activateTab(existing);
+    return activateTab(existing, pane);
   }
   const t = { id: ++tabSeq, chain: [loc], back: [] };
-  rememberTab();
-  const at = state.tabs.indexOf(state.activeTab);
-  state.tabs.splice(at < 0 ? state.tabs.length : at + 1, 0, t);
-  state.activeTab = t;
-  syncActive();
-  show(loc);
+  rememberTab(pane);
+  const at = pane.tabs.indexOf(pane.activeTab);
+  pane.tabs.splice(at < 0 ? pane.tabs.length : at + 1, 0, t);
+  pane.activeTab = t;
+  syncActive(pane);
+  show(loc, pane);
 }
 
-function confirmCloseDirty(tabs) {
-  const dirty = tabs.filter(tabDirty);
+function confirmCloseDirty(pane, tabs) {
+  const dirty = tabs.filter((t) => tabDirty(pane, t));
   if (!dirty.length) return true;
-  const names = dirty.map((t) => tabLoc(t).path.split('/').pop()).join(', ');
+  const names = dirty.map((t) => fileOf(tabLoc(t))).join(', ');
   return confirm(`${dirty.length === 1 ? `"${names}" has` : `${dirty.length} tabs have`} unsaved changes${dirty.length > 1 ? ` (${names})` : ''}. Close and discard them?`);
 }
 
-function closeTabs(tabs) {
-  if (!tabs.length || !confirmCloseDirty(tabs)) return;
+// Is this location still open in a tab somewhere once `closing` is gone?
+const stillOpen = (path, closing) => state.panes.some((p) => p.tabs.some((t) => !closing.has(t) && t.chain.some((l) => l.path === path)));
+
+function closeTabs(tabs, pane = state.activePane) {
+  if (!tabs.length || !confirmCloseDirty(pane, tabs)) return;
   const closing = new Set(tabs);
-  const active = state.activeTab;
+  const active = pane.activeTab;
   // Pick the neighbour of the active tab, preferring the right, among the tabs that stay open.
   let next = active;
   if (closing.has(active)) {
-    const i = state.tabs.indexOf(active);
-    next = state.tabs.slice(i + 1).find((t) => !closing.has(t)) ?? state.tabs.slice(0, i).reverse().find((t) => !closing.has(t)) ?? null;
+    const i = pane.tabs.indexOf(active);
+    next = pane.tabs.slice(i + 1).find((t) => !closing.has(t)) ?? pane.tabs.slice(0, i).reverse().find((t) => !closing.has(t)) ?? null;
   }
   for (const t of tabs) {
-    for (const l of t.chain) if (!state.tabs.some((o) => !closing.has(o) && o.chain.includes(l))) state.drafts.delete(l.path);
-    state.picked.delete(t);
+    for (const l of t.chain) if (!stillOpen(l.path, closing)) state.drafts.delete(l.path);
+    pane.picked.delete(t);
   }
   if (closing.has(active)) {
     // The live editor belongs to the closing tab; drop its edits instead of stashing them.
-    state.dirty = false;
-    state.ed = null;
+    pane.dirty = false;
+    pane.ed = null;
+    pane.editing = false;
   }
-  state.tabs = state.tabs.filter((t) => !closing.has(t));
-  state.tabHistory = state.tabHistory.filter((t) => !closing.has(t));
+  pane.tabs = pane.tabs.filter((t) => !closing.has(t));
+  pane.tabHistory = pane.tabHistory.filter((t) => !closing.has(t));
   if (next !== active) {
-    state.activeTab = next;
-    syncActive();
-    if (next) show(tabLoc(next));
-    else showEmpty();
+    pane.activeTab = next;
+    syncActive(pane);
+    if (next) show(tabLoc(next), pane);
+    else if (state.panes.length > 1) removePane(pane);
+    else showEmpty(pane);
   } else {
-    renderTabs();
+    renderTabs(pane);
     renderList();
+  }
+  // A file closed here may have been read-only in the other pane because this one was editing it.
+  refreshOtherPanes(pane);
+}
+
+function refreshOtherPanes(pane) {
+  for (const p of state.panes) {
+    if (p === pane || !p.current || p.editing || p.current.kind !== 'file') continue;
+    renderCrumbs(p);
   }
 }
 
-const closeTab = (t) => closeTabs([t]);
-const closeOthers = (t) => closeTabs(state.tabs.filter((o) => o !== t));
-const closeToRight = (t) => closeTabs(state.tabs.slice(state.tabs.indexOf(t) + 1));
-const closeSaved = () => closeTabs(state.tabs.filter((t) => !tabDirty(t)));
-const closeAll = () => closeTabs(state.tabs.slice());
+const closeTab = (t, pane) => closeTabs([t], pane);
+const closeOthers = (t, pane) => closeTabs(pane.tabs.filter((o) => o !== t), pane);
+const closeToRight = (t, pane) => closeTabs(pane.tabs.slice(pane.tabs.indexOf(t) + 1), pane);
+const closeSaved = (pane) => closeTabs(pane.tabs.filter((t) => !tabDirty(pane, t)), pane);
+const closeAll = (pane = state.activePane) => closeTabs(pane.tabs.slice(), pane);
 
-function showEmpty() {
-  ++showSeq;
-  state.current = null;
-  state.editing = false;
-  state.dirty = false;
-  state.ed = null;
-  state.chain = [];
-  state.back = [];
-  $('#view').classList.remove('editing');
-  $('#ruler').hidden = true;
-  $('#view').innerHTML = '<div class="empty">No open files. Pick a file on the left, or press Ctrl+P.</div>';
-  renderCrumbs();
-  renderTabs();
+function showEmpty(pane = state.activePane) {
+  ++pane.showSeq;
+  Object.assign(pane, { current: null, editing: false, dirty: false, ed: null, chain: [], back: [] });
+  pane.el.view.classList.remove('editing');
+  pane.el.ruler.hidden = true;
+  pane.el.view.innerHTML = '<div class="empty">No open files. Pick a file on the left, or press Ctrl+P.</div>';
+  renderCrumbs(pane);
+  renderTabs(pane);
   renderList();
 }
 
-function renderTabs() {
-  const bar = $('#tabbar');
-  bar.hidden = state.tabs.length === 0;
-  const html = state.tabs
+function renderTabs(pane = state.activePane) {
+  pane.el.tabbar.hidden = pane.tabs.length === 0;
+  const html = pane.tabs
     .map((t) => {
       const l = tabLoc(t);
-      const name = l.path.split('/').pop();
-      const cls = ['tab', t === state.activeTab && 'on', state.picked.has(t) && 'picked', tabDirty(t) && 'dirty'].filter(Boolean).join(' ');
-      return `<div class="${cls}" role="tab" aria-selected="${t === state.activeTab}" data-id="${t.id}" title="${esc(l.path)}${tabDirty(t) ? ' — unsaved' : ''}">` +
-        `<span class="tn">${esc(name)}</span>${l.kind === 'diff' ? '<span class="tk">diff</span>' : ''}` +
+      const dirty = tabDirty(pane, t);
+      const cls = ['tab', t === pane.activeTab && 'on', pane.picked.has(t) && 'picked', dirty && 'dirty'].filter(Boolean).join(' ');
+      return `<div class="${cls}" role="tab" aria-selected="${t === pane.activeTab}" data-id="${t.id}" title="${esc(l.path)}${dirty ? ' — unsaved' : ''}">` +
+        `<span class="tn">${esc(fileOf(l))}</span>${l.kind === 'diff' ? '<span class="tk">diff</span>' : ''}` +
         `<span class="tx-close" data-close="${t.id}" title="Close (Ctrl+W)"><span>×</span></span></div>`;
     })
     .join('');
-  const tabsEl = $('#tabs');
-  if (tabsEl.dataset.v !== html) {
-    tabsEl.innerHTML = html;
-    tabsEl.dataset.v = html;
+  const strip = pane.el.tabs;
+  if (strip.dataset.v !== html) {
+    strip.innerHTML = html;
+    strip.dataset.v = html;
   }
-  const picked = state.picked.size;
-  $('#closePicked').hidden = picked < 1;
-  $('#closePicked').textContent = `Close selected (${picked})`;
-  tabsEl.querySelector('.tab.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  const picked = pane.picked.size;
+  pane.el.closePicked.hidden = picked < 1;
+  pane.el.closePicked.textContent = `Close selected (${picked})`;
+  strip.querySelector('.tab.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
-const tabById = (id) => state.tabs.find((t) => t.id === Number(id));
+const tabById = (pane, id) => pane.tabs.find((t) => t.id === Number(id));
+const paneById = (id) => state.panes.find((p) => p.id === Number(id));
 
-function openTabMenu(t, x, y) {
+function openTabMenu(pane, t, x, y) {
   const menu = $('#tabMenu');
-  const i = state.tabs.indexOf(t);
-  const picked = [...state.picked];
+  const i = pane.tabs.indexOf(t);
+  const picked = [...pane.picked];
+  const canSplit = state.panes.length < MAX_PANES || state.panes.length > 1;
   const items = [
     ['close', 'Close', 'Ctrl+W', true],
-    ['others', 'Close Others', '', state.tabs.length > 1],
-    ['right', 'Close to the Right', '', i < state.tabs.length - 1],
-    ['saved', 'Close Saved', '', state.tabs.some((o) => !tabDirty(o))],
-    ['all', 'Close All', '', true],
+    ['others', 'Close Others', '', pane.tabs.length > 1],
+    ['right', 'Close to the Right', '', i < pane.tabs.length - 1],
+    ['saved', 'Close Saved', '', pane.tabs.some((o) => !tabDirty(pane, o))],
+    ['all', 'Close All', 'Ctrl+Shift+W', true],
+    null,
+    ['split', state.panes.length < MAX_PANES ? 'Open to the Side' : 'Open in Other Group', 'Ctrl+\\', canSplit],
   ];
   menu.innerHTML =
     (picked.length > 1 ? `<button data-act="picked">Close ${picked.length} Selected<kbd></kbd></button><hr>` : '') +
-    items.map(([act, label, key, on]) => `<button data-act="${act}" ${on ? '' : 'disabled'}>${label}<kbd>${key}</kbd></button>`).join('');
+    items.map((it) => (it ? `<button data-act="${it[0]}" ${it[3] ? '' : 'disabled'}>${it[1]}<kbd>${it[2]}</kbd></button>` : '<hr>')).join('');
+  menu.dataset.pane = pane.id;
   menu.dataset.id = t.id;
   menu.hidden = false;
   const r = menu.getBoundingClientRect();
@@ -761,57 +899,56 @@ function startChain(loc) {
   openInTab(loc);
 }
 
-function hop(loc) {
-  const hops = state.chain.length - 1;
+function hop(loc, pane = state.activePane) {
+  const hops = pane.chain.length - 1;
   if (hops >= state.maxDepth) {
     toast(`Ctrl+click depth limit (${state.maxDepth}) reached. Open the file from the sidebar or Ctrl+P to start a new chain.`);
     return;
   }
-  state.back.push({ chain: state.chain, loc: state.current });
-  state.chain = [...state.chain, loc];
-  commitActive();
-  show(loc);
+  pane.back.push({ chain: pane.chain, loc: pane.current });
+  pane.chain = [...pane.chain, loc];
+  commit(pane);
+  show(loc, pane);
 }
 
-function goBack() {
-  const prev = state.back.pop();
+function goBack(pane = state.activePane) {
+  const prev = pane.back.pop();
   if (prev) {
-    state.chain = prev.chain;
-    commitActive();
-    show(prev.loc);
+    pane.chain = prev.chain;
+    commit(pane);
+    show(prev.loc, pane);
     return;
   }
   // Nothing left in this tab: go back to the tab you came from, like VS Code's Go Back.
-  while (state.tabHistory.length) {
-    const t = state.tabHistory.pop();
-    if (t !== state.activeTab && state.tabs.includes(t)) return activateTab(t, { fromBack: true });
+  while (pane.tabHistory.length) {
+    const t = pane.tabHistory.pop();
+    if (t !== pane.activeTab && pane.tabs.includes(t)) return activateTab(t, pane, { fromBack: true });
   }
 }
 
-function jumpToCrumb(i) {
-  if (i === state.chain.length - 1) return;
-  state.back.push({ chain: state.chain, loc: state.current });
-  state.chain = state.chain.slice(0, i + 1);
-  commitActive();
-  show(state.chain[i]);
+function jumpToCrumb(i, pane) {
+  if (i === pane.chain.length - 1) return;
+  pane.back.push({ chain: pane.chain, loc: pane.current });
+  pane.chain = pane.chain.slice(0, i + 1);
+  commit(pane);
+  show(pane.chain[i], pane);
 }
 
-function changeSummary() {
-  const c = state.current?.marks?.counts;
+function changeSummary(pane) {
+  const c = pane.current?.marks?.counts;
   if (!c || !(c.add || c.mod || c.del)) return '';
   const vs = state.mode === 'branch' ? 'main' : 'HEAD';
   return `<span class="chg" title="Lines changed vs ${vs}"><span class="a">+${c.add}</span> <span class="m">~${c.mod}</span> <span class="d">−${c.del}</span> vs ${vs}</span>`;
 }
 
 // Each part only re-renders when its own HTML changes, so a button is never swapped out mid-click.
-const crumbParts = new Map();
-function setPart(name, html) {
-  let el = crumbParts.get(name);
+function setPart(pane, name, html) {
+  let el = pane.crumbParts.get(name);
   if (!el) {
     el = document.createElement('span');
     el.className = `part-${name}`;
-    crumbParts.set(name, el);
-    $('#crumbs').append(el);
+    pane.crumbParts.set(name, el);
+    pane.el.crumbs.append(el);
   }
   if (el.dataset.v !== html) {
     el.innerHTML = html;
@@ -819,49 +956,34 @@ function setPart(name, html) {
   }
 }
 
-function renderCrumbs() {
-  const hops = state.chain.length - 1;
-  const cur = state.current;
-  const parts = state.chain.map((loc, i) => {
-    const isCur = i === state.chain.length - 1;
-    const unsaved = (isCur && state.dirty) || (!isCur && state.drafts.has(loc.path)) ? '● ' : '';
-    const name = unsaved + loc.path.split('/').pop() + (loc.kind === 'diff' ? ' (diff)' : '');
+function renderCrumbs(pane = state.activePane) {
+  const hops = pane.chain.length - 1;
+  const c = pane.current;
+  const parts = pane.chain.map((loc, i) => {
+    const isCur = i === pane.chain.length - 1;
+    const unsaved = (isCur && pane.dirty) || (!isCur && state.drafts.has(loc.path)) ? '● ' : '';
+    const name = unsaved + fileOf(loc) + (loc.kind === 'diff' ? ' (diff)' : '');
     return `${i ? '<span class="sep">›</span>' : ''}<span class="c${isCur ? ' cur' : ''}" data-i="${i}" title="${esc(loc.path)}">${esc(name)}</span>`;
   });
   // Only offer Edit once the file's text has loaded; before that startEdit() has nothing to edit.
-  const canEdit = cur?.kind === 'file' && !cur.readonly && cur.text != null;
-  setPart('path', parts.join(''));
-  setPart('meta', `${changeSummary()}
-    ${cur ? `<span class="depth${hops >= state.maxDepth ? ' full' : ''}" title="Ctrl+click hops used in this chain">depth ${hops}/${state.maxDepth}</span>` : ''}`);
-  setPart('actions', `${cur?.kind === 'diff' && cur.status !== 'D' ? '<button class="btn" id="openFile">Open file</button>' : ''}
-    ${canEdit && !state.editing ? '<button class="btn" id="edit">Edit (E)</button>' : ''}
-    ${state.editing ? '<button class="btn" id="save">Save (Ctrl+S)</button><button class="btn" id="cancel">Discard</button>' : ''}`);
+  const other = c && editingElsewhere(pane, c.path);
+  const canEdit = c?.kind === 'file' && !c.readonly && c.text != null && !other;
+  setPart(pane, 'path', parts.join(''));
+  setPart(pane, 'meta', `${changeSummary(pane)}
+    ${c ? `<span class="depth${hops >= state.maxDepth ? ' full' : ''}" title="Ctrl+click hops used in this chain">depth ${hops}/${state.maxDepth}</span>` : ''}`);
+  setPart(pane, 'actions', `${c?.kind === 'diff' && c.status !== 'D' ? '<button class="btn" data-act="openFile">Open file</button>' : ''}
+    ${other && c?.kind === 'file' ? '<span class="depth" title="Save or discard there to edit here">editing in other group</span>' : ''}
+    ${canEdit && !pane.editing ? '<button class="btn" data-act="edit">Edit (E)</button>' : ''}
+    ${pane.editing ? '<button class="btn" data-act="save">Save (Ctrl+S)</button><button class="btn" data-act="cancel">Discard</button>' : ''}`);
 }
 
-// Delegated so buttons keep working when their part re-renders.
-$('#crumbs').addEventListener('click', (e) => {
-  const cur = state.current;
-  const crumb = e.target.closest('.c');
-  if (crumb) return jumpToCrumb(Number(crumb.dataset.i));
-  switch (e.target.closest('button')?.id) {
-    case 'openFile':
-      return hopOrStart({ kind: 'file', path: cur.path, old: cur.old });
-    case 'edit':
-      return startEdit();
-    case 'save':
-      return save();
-    case 'cancel':
-      return discardEdits();
-  }
-});
-
 // Opening the file behind a diff isn't a "definition" jump, so it doesn't spend depth.
-function hopOrStart(loc) {
-  if (!state.activeTab) return openInTab(loc);
-  state.back.push({ chain: state.chain, loc: state.current });
-  state.chain = [...state.chain.slice(0, -1), loc];
-  commitActive();
-  show(loc);
+function hopOrStart(loc, pane = state.activePane) {
+  if (!pane.activeTab) return openInTab(loc, pane);
+  pane.back.push({ chain: pane.chain, loc: pane.current });
+  pane.chain = [...pane.chain.slice(0, -1), loc];
+  commit(pane);
+  show(loc, pane);
 }
 
 async function loadBase(loc) {
@@ -875,37 +997,34 @@ async function loadBase(loc) {
   return null;
 }
 
-let showSeq = 0;
-async function show(loc) {
-  stashDraft();
-  const seq = ++showSeq;
-  state.current = loc;
-  state.editing = false;
-  state.dirty = false;
-  state.ed = null;
-  $('#view').classList.remove('editing');
-  $('#ruler').hidden = true;
+async function show(loc, pane = state.activePane) {
+  stashDraft(pane);
+  const seq = ++pane.showSeq;
+  Object.assign(pane, { current: loc, editing: false, dirty: false, ed: null });
+  pane.el.view.classList.remove('editing');
+  pane.el.ruler.hidden = true;
   // A revisited file reloads fresh, so don't offer Edit on its stale text in the meantime.
   if (loc.kind === 'file') loc.text = null;
-  renderCrumbs();
-  renderTabs();
+  renderCrumbs(pane);
+  renderTabs(pane);
   // Expand the tree to the open file even when another tab is showing, so it's already there on switch.
   revealInTree(loc.path);
   renderList();
-  const view = $('#view');
+  refreshOtherPanes(pane);
+  const view = pane.el.view;
   view.innerHTML = '<div class="empty">Loading…</div>';
   try {
     if (loc.kind === 'diff') {
       const { diff } = await api('/api/diff', { path: loc.path, old: loc.old || '', mode: state.mode });
-      if (seq !== showSeq) return;
-      if (loc.status === '?') return renderUntracked(loc, seq);
-      renderDiff(diff, loc);
+      if (seq !== pane.showSeq) return;
+      if (loc.status === '?') return renderUntracked(loc, seq, pane);
+      renderDiff(diff, loc, pane);
     } else {
       const [data, base] = await Promise.all([api('/api/file', { path: loc.path }), loadBase(loc)]);
-      if (seq !== showSeq) return;
+      if (seq !== pane.showSeq) return;
       if (data.tooLarge || data.binary) {
         loc.readonly = true;
-        renderCrumbs();
+        renderCrumbs(pane);
         view.innerHTML = `<div class="empty">${data.binary ? 'Binary file' : 'File too large to show'} (${(data.size / 1024).toFixed(0)} KB)</div>`;
         return;
       }
@@ -914,30 +1033,30 @@ async function show(loc) {
       loc.base = base;
       loc.marks = marksFor(base, loc.text);
       loc.imports = null;
-      renderCrumbs();
+      renderCrumbs(pane);
       const draft = state.drafts.get(loc.path);
-      if (draft) startEdit(draft);
-      else renderFile(loc);
+      if (draft && !editingElsewhere(pane, loc.path)) startEdit(draft, pane);
+      else renderFile(loc, pane);
     }
   } catch (e) {
-    if (seq === showSeq) view.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+    if (seq === pane.showSeq) view.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
 }
 
-async function renderUntracked(loc, seq) {
+async function renderUntracked(loc, seq, pane) {
   const data = await api('/api/file', { path: loc.path });
-  if (seq !== showSeq) return;
+  if (seq !== pane.showSeq) return;
   if (data.content == null) {
-    $('#view').innerHTML = '<div class="empty">New file (binary or too large to show)</div>';
+    pane.el.view.innerHTML = '<div class="empty">New file (binary or too large to show)</div>';
     return;
   }
   const lines = toLF(data.content).replace(/\n$/, '').split('\n');
   const diff = `@@ -0,0 +1,${lines.length} @@ new file\n` + lines.map((l) => '+' + l).join('\n');
-  renderDiff(diff, loc);
+  renderDiff(diff, loc, pane);
 }
 
-function renderDiff(diff, loc) {
-  const view = $('#view');
+function renderDiff(diff, loc, pane) {
+  const view = pane.el.view;
   if (!diff.trim()) {
     view.innerHTML = '<div class="empty">No textual changes (mode change or binary).</div>';
     return;
@@ -966,66 +1085,67 @@ function renderDiff(diff, loc) {
   view.scrollTop = 0;
 }
 
-function renderFile(loc) {
-  const view = $('#view');
+function renderFile(loc, pane = state.activePane) {
+  const view = pane.el.view;
   const { specs } = JS_EXT.test(loc.path) ? (loc.imports ??= parseImports(loc.text)) : { specs: null };
   const lines = highlightLines(loc.text, loc.path, specs);
   const info = loc.marks;
   let html = '';
+  // Line rows are addressed by data-row, not id, because the same file can be open in two panes.
   for (let i = 0; i < lines.length; i++) {
-    html += `<tr id="L${i + 1}"><td class="ln ${markClass(info, i, lines.length)}" data-line="${i + 1}">${i + 1}</td><td class="tx">${lines[i] || ' '}</td></tr>`;
+    html += `<tr data-row="${i + 1}"><td class="ln ${markClass(info, i, lines.length)}" data-line="${i + 1}">${i + 1}</td><td class="tx">${lines[i] || ' '}</td></tr>`;
   }
   view.innerHTML = `<table class="code">${html}</table>`;
-  renderRuler(info, lines.length);
-  scrollToLine(loc.line);
+  renderRuler(info, lines.length, pane);
+  scrollToLine(loc.line, pane);
 }
 
-function scrollToLine(line) {
-  if (state.ed) return editorGoToLine(line);
-  const view = $('#view');
+function scrollToLine(line, pane = state.activePane) {
+  if (pane.ed) return editorGoToLine(line, pane);
+  const view = pane.el.view;
   if (!line || line <= 1) {
     view.scrollTop = 0;
     return;
   }
-  const tr = document.getElementById(`L${line}`);
+  const tr = view.querySelector(`tr[data-row="${line}"]`);
   if (!tr) return;
   view.scrollTop = Math.max(0, tr.offsetTop - view.clientHeight / 3);
   tr.classList.add('flash');
 }
 
 // ---------- ctrl+click ----------
-async function fileTextFor(loc) {
-  if (state.ed && state.ed.loc === loc) return state.ed.ta.value;
+async function fileTextFor(loc, pane) {
+  if (pane.ed && pane.ed.loc === loc) return pane.ed.ta.value;
   if (loc.kind === 'file' && loc.text != null) return loc.text;
   const data = await api('/api/file', { path: loc.path });
   return toLF(data.content ?? '');
 }
 
-async function onCtrlClick(target) {
-  const cur = state.current;
-  if (!cur || cur.status === 'D') return;
+async function onCtrlClick(target, pane) {
+  const c = pane.current;
+  if (!c || c.status === 'D') return;
   const word = target.textContent;
   try {
     if (target.classList.contains('s')) {
       const spec = word.replace(/^['"`]|['"`]$/g, '');
-      const hit = await api('/api/resolve', { from: cur.path, spec });
-      return hop({ kind: 'file', path: hit.path, line: hit.line });
+      const hit = await api('/api/resolve', { from: c.path, spec });
+      return hop({ kind: 'file', path: hit.path, line: hit.line }, pane);
     }
     if (!target.classList.contains('i')) return;
-    const text = await fileTextFor(cur);
+    const text = await fileTextFor(c, pane);
     const imp = parseImports(text).names.get(word);
     if (imp) {
-      const hit = await api('/api/resolve', { from: cur.path, spec: imp.spec, name: imp.name || '' });
-      return hop({ kind: 'file', path: hit.path, line: hit.line });
+      const hit = await api('/api/resolve', { from: c.path, spec: imp.spec, name: imp.name || '' });
+      return hop({ kind: 'file', path: hit.path, line: hit.line }, pane);
     }
     const line = findLocalDeclaration(text, word);
     if (!line) return toast(`No import or declaration found for "${word}"`);
     // Same-file jumps are free: they don't use up depth.
-    if (cur.kind === 'file') {
-      cur.line = line;
-      scrollToLine(line);
+    if (c.kind === 'file') {
+      c.line = line;
+      scrollToLine(line, pane);
     } else {
-      hopOrStart({ kind: 'file', path: cur.path, line });
+      hopOrStart({ kind: 'file', path: c.path, line }, pane);
     }
   } catch (e) {
     toast(e.message);
@@ -1033,44 +1153,48 @@ async function onCtrlClick(target) {
 }
 
 // ---------- editing ----------
-function startEdit(draft) {
-  const cur = state.current;
-  if (cur?.kind !== 'file' || cur.readonly || cur.text == null) return;
-  const view = $('#view');
+function startEdit(draft, pane = state.activePane) {
+  const c = pane.current;
+  if (c?.kind !== 'file' || c.readonly || c.text == null || pane.editing) return;
+  if (editingElsewhere(pane, c.path)) return toast('This file is being edited in the other group.');
+  const view = pane.el.view;
   const startScroll = draft?.scrollTop ?? view.scrollTop;
-  state.editing = true;
-  state.dirty = Boolean(draft);
+  pane.editing = true;
+  pane.dirty = Boolean(draft);
 
   const host = document.createElement('div');
   host.className = 'ed';
-  host.innerHTML = '<div class="ed-gutter"><div class="g-in"></div></div><div class="ed-main"><pre class="ed-hl"></pre><textarea class="ed-ta" id="editor" wrap="off" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea></div>';
+  host.innerHTML = '<div class="ed-gutter"><div class="g-in"></div></div><div class="ed-main"><pre class="ed-hl"></pre><textarea class="ed-ta" wrap="off" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea></div>';
   const ta = host.querySelector('textarea');
-  ta.value = draft?.text ?? cur.text;
+  ta.value = draft?.text ?? c.text;
   const ed = {
-    loc: cur,
+    loc: c,
+    pane,
     ta,
     hl: host.querySelector('.ed-hl'),
     gutter: host.querySelector('.ed-gutter'),
     gutterInner: host.querySelector('.g-in'),
     lines: ta.value.split('\n'),
-    specs: JS_EXT.test(cur.path) ? parseImports(ta.value).specs : null,
-    marks: draft ? marksFor(cur.base, ta.value) : cur.marks,
+    specs: JS_EXT.test(c.path) ? parseImports(ta.value).specs : null,
+    marks: draft ? marksFor(c.base, ta.value) : c.marks,
     frame: 0,
     marksTimer: 0,
   };
-  state.ed = ed;
-  cur.marks = ed.marks;
+  pane.ed = ed;
+  c.marks = ed.marks;
   view.classList.add('editing');
   view.replaceChildren(host);
-  renderCrumbs();
+  renderCrumbs(pane);
+  refreshOtherPanes(pane);
 
   ta.addEventListener('scroll', () => scheduleEditorRender(ed));
   ta.addEventListener('input', () => {
     ed.lines = ta.value.split('\n');
-    if (!state.dirty) {
-      state.dirty = true;
-      renderCrumbs();
-      renderTabs();
+    if (!pane.dirty) {
+      pane.dirty = true;
+      renderCrumbs(pane);
+      renderTabs(pane);
+      renderList();
     }
     renderEditorWindow(ed);
     clearTimeout(ed.marksTimer);
@@ -1091,7 +1215,7 @@ function startEdit(draft) {
 
   ta.scrollTop = startScroll;
   renderEditorWindow(ed);
-  renderRuler(ed.marks, ed.lines.length);
+  renderRuler(ed.marks, ed.lines.length, pane);
   ta.focus({ preventScroll: true });
 }
 
@@ -1105,7 +1229,7 @@ function scheduleEditorRender(ed) {
 
 // Only the visible lines (plus overscan) are highlighted and in the DOM, so big files stay cheap.
 function renderEditorWindow(ed) {
-  if (state.ed !== ed) return;
+  if (ed.pane.ed !== ed) return;
   const { ta, lines } = ed;
   const total = lines.length;
   const first = Math.max(0, Math.floor((ta.scrollTop - EDITOR_PAD_TOP) / LINE_HEIGHT) - OVERSCAN_LINES);
@@ -1122,17 +1246,17 @@ function renderEditorWindow(ed) {
 }
 
 function refreshEditorMarks(ed) {
-  if (state.ed !== ed) return;
+  if (ed.pane.ed !== ed) return;
   ed.marks = marksFor(ed.loc.base, ed.ta.value);
   ed.loc.marks = ed.marks;
   if (ed.specs) ed.specs = parseImports(ed.ta.value).specs;
   renderEditorWindow(ed);
-  renderRuler(ed.marks, ed.lines.length);
-  renderCrumbs();
+  renderRuler(ed.marks, ed.lines.length, ed.pane);
+  renderCrumbs(ed.pane);
 }
 
-function editorGoToLine(line) {
-  const ed = state.ed;
+function editorGoToLine(line, pane) {
+  const ed = pane.ed;
   if (!ed || !line) return;
   const { ta } = ed;
   ta.scrollTop = Math.max(0, (line - 1) * LINE_HEIGHT - ta.clientHeight / 3);
@@ -1143,37 +1267,37 @@ function editorGoToLine(line) {
   renderEditorWindow(ed);
 }
 
-function discardEdits() {
-  const cur = state.current;
-  if (state.dirty && !confirm('Discard unsaved changes?')) return;
-  state.dirty = false;
-  state.drafts.delete(cur.path);
-  show(cur);
+function discardEdits(pane = state.activePane) {
+  const c = pane.current;
+  if (pane.dirty && !confirm('Discard unsaved changes?')) return;
+  pane.dirty = false;
+  state.drafts.delete(c.path);
+  show(c, pane);
 }
 
-async function save() {
-  const cur = state.current;
-  const ed = state.ed;
-  if (!ed || !cur) return;
+async function save(pane = state.activePane) {
+  const c = pane.current;
+  const ed = pane.ed;
+  if (!ed || !c) return;
   const text = ed.ta.value;
   try {
     // Textareas always use \n; keep the file's own line endings so the whole file doesn't show as changed.
-    const body = cur.eol === '\r\n' ? text.replace(/\n/g, '\r\n') : text;
-    await api('/api/save', { path: cur.path }, { method: 'POST', body, headers: { 'x-lite-diff': '1' } });
-    cur.text = text;
-    cur.imports = null;
-    cur.marks = marksFor(cur.base, text);
-    cur.line = Math.floor(ed.ta.scrollTop / LINE_HEIGHT) + 1;
-    state.drafts.delete(cur.path);
-    state.editing = false;
-    state.dirty = false;
-    state.ed = null;
-    $('#view').classList.remove('editing');
+    const body = c.eol === '\r\n' ? text.replace(/\n/g, '\r\n') : text;
+    await api('/api/save', { path: c.path }, { method: 'POST', body, headers: { 'x-lite-diff': '1' } });
+    c.text = text;
+    c.imports = null;
+    c.marks = marksFor(c.base, text);
+    c.line = Math.floor(ed.ta.scrollTop / LINE_HEIGHT) + 1;
+    state.drafts.delete(c.path);
+    Object.assign(pane, { editing: false, dirty: false, ed: null });
+    pane.el.view.classList.remove('editing');
     toast('Saved');
-    renderCrumbs();
-    renderTabs();
-    renderFile(cur);
+    renderCrumbs(pane);
+    renderTabs(pane);
+    renderFile(c, pane);
     loadChanges();
+    // Other panes showing this file reload so they show the saved text.
+    for (const p of state.panes) if (p !== pane && p.current?.path === c.path && !p.editing) show(p.current, p);
   } catch (e) {
     toast(`Save failed: ${e.message}`);
   }
@@ -1217,140 +1341,181 @@ $('#mode').onchange = (e) => {
   state.mode = e.target.value;
   localStorage.setItem('lite-diff-mode', state.mode);
   loadChanges();
-  if (state.current) show(state.current);
+  for (const p of state.panes) if (p.current) show(p.current, p);
 };
 $('#refresh').onclick = () => {
   state.dirCache.clear();
   loadChanges();
-  if (state.current && !state.editing) show(state.current);
+  for (const p of state.panes) if (p.current && !p.editing) show(p.current, p);
 };
 
-$('#view').addEventListener('click', (e) => {
-  const ln = e.target.closest('td.ln[data-line]');
-  if (ln && state.current?.kind === 'diff' && state.current.status !== 'D') {
-    return hopOrStart({ kind: 'file', path: state.current.path, old: state.current.old, line: Number(ln.dataset.line) });
-  }
-  if (!(e.ctrlKey || e.metaKey)) return;
-  const tok = e.target.closest('.i, .s');
-  if (tok) {
+// Per-pane listeners. Clicking anywhere in a pane makes it the active group.
+function wirePane(pane) {
+  const { root, tabs, crumbs, view, ruler } = pane.el;
+  root.addEventListener('pointerdown', () => focusPane(pane), true);
+  root.addEventListener('focusin', () => focusPane(pane));
+
+  crumbs.addEventListener('click', (e) => {
+    const c = pane.current;
+    const crumb = e.target.closest('.c');
+    if (crumb) return jumpToCrumb(Number(crumb.dataset.i), pane);
+    switch (e.target.closest('button')?.dataset.act) {
+      case 'openFile':
+        return hopOrStart({ kind: 'file', path: c.path, old: c.old }, pane);
+      case 'edit':
+        return startEdit(undefined, pane);
+      case 'save':
+        return save(pane);
+      case 'cancel':
+        return discardEdits(pane);
+    }
+  });
+
+  view.addEventListener('click', (e) => {
+    const c = pane.current;
+    const ln = e.target.closest('td.ln[data-line]');
+    if (ln && c?.kind === 'diff' && c.status !== 'D') {
+      return hopOrStart({ kind: 'file', path: c.path, old: c.old, line: Number(ln.dataset.line) }, pane);
+    }
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const tok = e.target.closest('.i, .s');
+    if (tok) {
+      e.preventDefault();
+      onCtrlClick(tok, pane);
+    }
+  });
+
+  ruler.addEventListener('click', (e) => {
+    const r = e.target.closest('.r[data-line]');
+    if (r) scrollToLine(Number(r.dataset.line), pane);
+  });
+
+  // Tabs: click to switch, Ctrl/Shift+click to multi-select, × or middle-click to close, right-click for the menu.
+  tabs.addEventListener('click', (e) => {
+    const el = e.target.closest('.tab');
+    if (!el) return;
+    const t = tabById(pane, el.dataset.id);
+    if (e.target.closest('[data-close]')) {
+      e.stopPropagation();
+      return closeTab(t, pane);
+    }
+    if (e.ctrlKey || e.metaKey) {
+      pane.picked.has(t) ? pane.picked.delete(t) : pane.picked.add(t);
+      pane.lastPicked = t;
+      return renderTabs(pane);
+    }
+    if (e.shiftKey && pane.lastPicked) {
+      const [a, b] = [pane.tabs.indexOf(pane.lastPicked), pane.tabs.indexOf(t)].sort((x, y) => x - y);
+      for (const o of pane.tabs.slice(a, b + 1)) pane.picked.add(o);
+      return renderTabs(pane);
+    }
+    if (pane.picked.size) pane.picked.clear();
+    pane.lastPicked = t;
+    activateTab(t, pane);
+    renderTabs(pane);
+  });
+  tabs.addEventListener('auxclick', (e) => {
+    const el = e.target.closest('.tab');
+    if (el && e.button === 1) {
+      e.preventDefault();
+      closeTab(tabById(pane, el.dataset.id), pane);
+    }
+  });
+  // Stop the middle button starting autoscroll on the tab strip.
+  tabs.addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault());
+  tabs.addEventListener('contextmenu', (e) => {
+    const el = e.target.closest('.tab');
+    if (!el) return;
     e.preventDefault();
-    onCtrlClick(tok);
-  }
-});
-// Tabs: click to switch, Ctrl/Shift+click to multi-select, × or middle-click to close, right-click for the menu.
-let lastPickedTab = null;
-$('#tabs').addEventListener('click', (e) => {
-  const el = e.target.closest('.tab');
-  if (!el) return;
-  const t = tabById(el.dataset.id);
-  if (e.target.closest('[data-close]')) {
-    e.stopPropagation();
-    return closeTab(t);
-  }
-  if (e.ctrlKey || e.metaKey) {
-    state.picked.has(t) ? state.picked.delete(t) : state.picked.add(t);
-    lastPickedTab = t;
-    return renderTabs();
-  }
-  if (e.shiftKey && lastPickedTab) {
-    const [a, b] = [state.tabs.indexOf(lastPickedTab), state.tabs.indexOf(t)].sort((x, y) => x - y);
-    for (const o of state.tabs.slice(a, b + 1)) state.picked.add(o);
-    return renderTabs();
-  }
-  if (state.picked.size) state.picked.clear();
-  lastPickedTab = t;
-  activateTab(t);
-  renderTabs();
-});
-$('#tabs').addEventListener('auxclick', (e) => {
-  const el = e.target.closest('.tab');
-  if (el && e.button === 1) {
-    e.preventDefault();
-    closeTab(tabById(el.dataset.id));
-  }
-});
-// Stop the middle button starting autoscroll on the tab strip.
-$('#tabs').addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault());
-$('#tabs').addEventListener('contextmenu', (e) => {
-  const el = e.target.closest('.tab');
-  if (!el) return;
-  e.preventDefault();
-  const t = tabById(el.dataset.id);
-  // Right-clicking an unpicked tab acts on that tab alone, like a file manager.
-  if (!state.picked.has(t)) state.picked.clear();
-  renderTabs();
-  openTabMenu(t, e.clientX, e.clientY);
-});
+    const t = tabById(pane, el.dataset.id);
+    // Right-clicking an unpicked tab acts on that tab alone, like a file manager.
+    if (!pane.picked.has(t)) pane.picked.clear();
+    renderTabs(pane);
+    openTabMenu(pane, t, e.clientX, e.clientY);
+  });
+
+  pane.el.closePicked.onclick = () => closeTabs([...pane.picked], pane);
+  pane.el.closeAll.onclick = () => closeAll(pane);
+  pane.el.split.onclick = () => splitPane(pane.current);
+}
+
 $('#tabMenu').addEventListener('click', (e) => {
   const act = e.target.closest('button:not(:disabled)')?.dataset.act;
   if (!act) return;
-  const t = tabById($('#tabMenu').dataset.id);
+  const menu = $('#tabMenu');
+  const pane = paneById(menu.dataset.pane);
+  const t = pane && tabById(pane, menu.dataset.id);
   closeTabMenu();
   if (!t) return;
   ({
-    close: () => closeTab(t),
-    others: () => closeOthers(t),
-    right: () => closeToRight(t),
-    saved: closeSaved,
-    all: closeAll,
-    picked: () => closeTabs([...state.picked]),
+    close: () => closeTab(t, pane),
+    others: () => closeOthers(t, pane),
+    right: () => closeToRight(t, pane),
+    saved: () => closeSaved(pane),
+    all: () => closeAll(pane),
+    picked: () => closeTabs([...pane.picked], pane),
+    split: () => splitPane(tabLoc(t)),
   })[act]();
 });
 addEventListener('mousedown', (e) => !e.target.closest('#tabMenu') && closeTabMenu());
 addEventListener('resize', closeTabMenu);
-$('#closePicked').onclick = () => closeTabs([...state.picked]);
-$('#closeAll').onclick = closeAll;
 
-function cycleTab(dir) {
-  const n = state.tabs.length;
+function cycleTab(dir, pane = state.activePane) {
+  const n = pane.tabs.length;
   if (n < 2) return;
-  const i = state.tabs.indexOf(state.activeTab);
-  activateTab(state.tabs[(i + dir + n) % n]);
+  const i = pane.tabs.indexOf(pane.activeTab);
+  activateTab(pane.tabs[(i + dir + n) % n], pane);
 }
-
-$('#ruler').addEventListener('click', (e) => {
-  const r = e.target.closest('.r[data-line]');
-  if (r) scrollToLine(Number(r.dataset.line));
-});
 
 addEventListener('keydown', (e) => {
   if (e.key === 'Control' || e.key === 'Meta') document.body.classList.add('ctrl');
+  const pane = state.activePane;
   const typing = e.target.matches('input, textarea, select');
   const mod = e.ctrlKey || e.metaKey;
   const key = e.key.toLowerCase();
   if (e.key === 'Escape' && !$('#tabMenu').hidden) {
     closeTabMenu();
-  } else if (e.key === 'Escape' && state.picked.size && !typing) {
-    state.picked.clear();
-    renderTabs();
+  } else if (e.key === 'Escape' && pane.picked.size && !typing) {
+    pane.picked.clear();
+    renderTabs(pane);
+  } else if (mod && e.key === '\\') {
+    // Ctrl+\ splits the editor, like VS Code.
+    e.preventDefault();
+    splitPane(pane.current);
+  } else if (mod && /^[1-2]$/.test(e.key) && !e.altKey) {
+    // Ctrl+1 / Ctrl+2 focus the first / second group.
+    e.preventDefault();
+    const target = state.panes[Number(e.key) - 1];
+    if (target) focusPane(target);
   } else if (mod && e.shiftKey && key === 'w') {
     e.preventDefault();
-    closeAll();
+    closeAll(pane);
   } else if (mod && key === 'w') {
     // Ctrl+W closes the selected tabs if any, else the active tab (never the window).
     e.preventDefault();
-    if (state.picked.size) closeTabs([...state.picked]);
-    else if (state.activeTab) closeTab(state.activeTab);
+    if (pane.picked.size) closeTabs([...pane.picked], pane);
+    else if (pane.activeTab) closeTab(pane.activeTab, pane);
+    else if (state.panes.length > 1) removePane(pane);
   } else if ((mod && e.key === 'Tab') || (mod && (e.key === 'PageDown' || e.key === 'PageUp'))) {
     e.preventDefault();
-    cycleTab(e.shiftKey || e.key === 'PageUp' ? -1 : 1);
+    cycleTab(e.shiftKey || e.key === 'PageUp' ? -1 : 1, pane);
   } else if (e.altKey && /^[1-9]$/.test(e.key)) {
     e.preventDefault();
-    const t = e.key === '9' ? state.tabs[state.tabs.length - 1] : state.tabs[Number(e.key) - 1];
-    if (t) activateTab(t);
+    const t = e.key === '9' ? pane.tabs[pane.tabs.length - 1] : pane.tabs[Number(e.key) - 1];
+    if (t) activateTab(t, pane);
   } else if (mod && key === 's') {
     e.preventDefault();
-    if (state.editing) save();
-  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+    if (pane.editing) save(pane);
+  } else if (mod && key === 'p') {
     e.preventDefault();
     $('#quick').focus();
     $('#quick').select();
   } else if (e.altKey && e.key === 'ArrowLeft') {
     e.preventDefault();
-    goBack();
-  } else if (!typing && e.key.toLowerCase() === 'e' && !e.ctrlKey && !e.altKey) {
-    startEdit();
-  } else if (!typing && e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.altKey) {
+    goBack(pane);
+  } else if (!typing && key === 'e' && !e.ctrlKey && !e.altKey) {
+    startEdit(undefined, pane);
+  } else if (!typing && key === 'r' && !e.ctrlKey && !e.altKey) {
     $('#refresh').click();
   }
 });
@@ -1360,7 +1525,7 @@ addEventListener('keyup', (e) => {
 addEventListener('blur', () => document.body.classList.remove('ctrl'));
 addEventListener('mouseup', (e) => e.button === 3 && goBack());
 addEventListener('beforeunload', (e) => {
-  if (state.dirty || state.drafts.size) e.preventDefault();
+  if (state.panes.some((p) => p.dirty) || state.drafts.size) e.preventDefault();
 });
 
 const resizer = $('#resizer');
@@ -1370,6 +1535,10 @@ resizer.addEventListener('pointerdown', (e) => {
   resizer.addEventListener('pointermove', move);
   resizer.addEventListener('pointerup', () => resizer.removeEventListener('pointermove', move), { once: true });
 });
+
+state.panes = [createPane()];
+state.activePane = state.panes[0];
+layoutPanes();
 
 (async () => {
   try {

@@ -6,6 +6,7 @@ A tiny, low-memory git diff viewer and file editor for big repos. Use it when yo
 - No indexing, file watching or language server, so it idles at ~0% CPU and ~60 MB RAM
 - Changes view (uncommitted or whole branch vs `main`) with coloured diffs
 - Lazy-loading file tree (coloured by git status) and Ctrl+P file search
+- Split editor: open two files side by side (Ctrl+\ or the ⫿ button), each group with its own tabs
 - Editor tabs: open several files, each with its own Ctrl+click history; close one, several (Ctrl/Shift+click to select), others, to the right, saved, or all
 - Ctrl+click go-to-definition with a configurable depth limit; resolves relative imports, tsconfig `paths`, workspace package `exports`, and barrel re-exports
 - Edit + save with syntax highlighting, Ctrl+click go-to-definition while editing, and unsaved drafts kept when you navigate away
@@ -46,6 +47,8 @@ On Windows you can also run `lite-diff.cmd [repo-path] [options]`. With no repo 
 | Ctrl+Tab / Ctrl+PageDown | Next tab (Shift / PageUp for previous) |
 | Alt+1…9 | Go to tab 1…8, or the last tab |
 | Middle-click / right-click a tab | Close it / more close options |
+| Ctrl+\ | Split: open the current file side by side |
+| Ctrl+1 / Ctrl+2 | Focus the left / right group |
 
 ## Notes
 
